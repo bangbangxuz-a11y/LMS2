@@ -158,6 +158,7 @@
 
             // --- Editor instances ---
             let editors = {};
+            let editorOptions = null;
 
             // --- Defaults ---
             const DEFAULT_HTML = `<h1>Hello, World! 👋</h1>\n<p>Edit kode di sebelah kiri untuk melihat perubahan secara langsung.</p>\n<link rel="stylesheet" href="style.css" />\n<script src="script.js"><\/script>`;
@@ -2281,7 +2282,7 @@
                 const keyMap = { html: 'html', css: 'css', javascript: 'js', python: 'python' };
                 const editorKey = keyMap[lang] || 'html';
 
-                const editor = editors[editorKey];
+                const editor = editors[editorKey] || ensureEditor(editorKey);
                 if (editor) {
                     editor.setModel(f.model);
                     editor.focus();
@@ -2934,7 +2935,7 @@
 
             function createEditors() {
                 const compactDevice = window.matchMedia?.('(max-width: 820px), (pointer: coarse)').matches === true;
-                const commonOpts = {
+                editorOptions = {
                     automaticLayout: false,
                     theme: theme === 'dark' ? 'vs-dark' : 'vs',
                     fontSize: settings.fontSize,
@@ -2948,26 +2949,18 @@
                     autoClosingQuotes: 'always',
                     formatOnType: true
                 };
-
-                const htmlEditor = monaco.editor.create(document.getElementById('htmlEditorSlot'), {
-                    model: null,
-                    ...commonOpts
-                });
-                const cssEditor = monaco.editor.create(document.getElementById('cssEditorSlot'), {
-                    model: null,
-                    ...commonOpts
-                });
-                const jsEditor = monaco.editor.create(document.getElementById('jsEditorSlot'), {
-                    model: null,
-                    ...commonOpts
-                });
-                const pythonEditor = monaco.editor.create(document.getElementById('pythonEditorSlot'), {
-                    model: null,
-                    ...commonOpts
-                });
-
-                editors = { html: htmlEditor, css: cssEditor, js: jsEditor, python: pythonEditor };
+                editors = {};
+                ensureEditor('html');
                 return editors;
+            }
+
+            function ensureEditor(editorKey) {
+                if (editors[editorKey]) return editors[editorKey];
+                const slotId = { html: 'htmlEditorSlot', css: 'cssEditorSlot', js: 'jsEditorSlot', python: 'pythonEditorSlot' }[editorKey];
+                const slot = document.getElementById(slotId);
+                if (!slot || !editorOptions) return null;
+                editors[editorKey] = monaco.editor.create(slot, { model: null, ...editorOptions });
+                return editors[editorKey];
             }
 
             // ============================================================
@@ -3056,8 +3049,9 @@
                 if (active) {
                     const keyMap = { html: 'html', css: 'css', javascript: 'js', python: 'python' };
                     const editorKey = keyMap[active.language] || 'html';
-                    if (editors[editorKey]) {
-                        editors[editorKey].setModel(active.model);
+                    const activeEditor = editors[editorKey] || ensureEditor(editorKey);
+                    if (activeEditor) {
+                        activeEditor.setModel(active.model);
                     }
                     const slotMap = { html: 'htmlEditorSlot', css: 'cssEditorSlot', js: 'jsEditorSlot', python: 'pythonEditorSlot' };
                     Object.keys(slotMap).forEach(k => {
