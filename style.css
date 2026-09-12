@@ -1,6 +1,7 @@
         /* ===== RESET & VARIABEL ===== */
         * {
             margin: 0;
+            box-sizing: border-box;
         }
         :root {
             --bg-primary: #ffffff;

@@ -2516,7 +2516,6 @@
             // ============================================================
             function persistDrafts() {
                 if (!settings.autoSave || !editors.html || document.hidden || !persistenceDirty) return;
-                syncAllFileState();
                 saveData(files, activeFileId, false, openFileIds, false);
             }
 
@@ -2754,6 +2753,7 @@
                     div.innerHTML =
                         `<i class="fas ${c.icon}"></i> ${c.label}${c.shortcut ? '<span class="shortcut">'+c.shortcut+'</span>' : ''}`;
                     div.onclick = () => { cmdPalette.classList.remove('open');
+                        cmdPalette.setAttribute('aria-hidden', 'true');
                         c.action(); };
                     cmdList.appendChild(div);
                 });
@@ -2959,7 +2959,9 @@
                     }
                     const slotMap = { html: 'htmlEditorSlot', css: 'cssEditorSlot', js: 'jsEditorSlot', python: 'pythonEditorSlot' };
                     Object.keys(slotMap).forEach(k => {
-                        document.getElementById(slotMap[k]).classList.toggle('active', k === editorKey);
+                        const slot = document.getElementById(slotMap[k]);
+                        slot.classList.toggle('active', k === editorKey);
+                        slot.setAttribute('aria-hidden', String(k !== editorKey));
                     });
                 } else {
                     ['html', 'css', 'js', 'python'].forEach(key => editors[key]?.setModel(null));
@@ -3103,6 +3105,7 @@
                 }
                 if (e.key === 'Escape') {
                     cmdPalette.classList.remove('open');
+                    cmdPalette.setAttribute('aria-hidden', 'true');
                     if (cdnModal.classList.contains('open')) closeModal(cdnModal);
                     if (settingsModal.classList.contains('open')) closeModal(settingsModal);
                 }

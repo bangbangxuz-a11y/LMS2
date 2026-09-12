@@ -10,6 +10,8 @@
     <meta property="og:description" content="Editor kode berbasis web dengan live preview untuk HTML, CSS, JavaScript, dan Python." />
     <meta property="og:locale" content="id_ID" />
     <title>CodePlayground Pro | Editor Kode Web dengan Live Preview</title>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <script type="application/ld+json">
         {
             "@context": "https://schema.org",
@@ -26,7 +28,7 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <a class="skip-link" href="#main-content">Lewati ke editor</a>
+    <a class="skip-link" href="#mainPanel">Lewati ke editor</a>
     <!-- ===== HEADER ===== -->
     <header class="header">
         <div class="logo" aria-label="CodePlayground Pro">
@@ -61,7 +63,7 @@
             </div>
         </aside>
 
-        <main class="main-panel" id="main-content" tabindex="-1">
+        <main class="main-panel" id="mainPanel" tabindex="-1">
             <div class="editor-area" id="editorArea">
                 <div class="editor-tabs-bar" id="editorTabsBar" role="tablist" aria-label="Open files"></div>
                 <div class="editor-container" id="editorContainer">
@@ -141,12 +143,12 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <input type="file" id="fileInput" aria-label="Pilih file untuk diunggah" accept=".html,.css,.js,.py,.png,.jpg,.jpeg,.gif,.webp,.svg,.ico,.woff,.woff2,.ttf,.otf,.mp3,.wav,.mp4,.webm,.pdf" />
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js" integrity="sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe" crossorigin="anonymous">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js" integrity="sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe" crossorigin="anonymous" referrerpolicy="no-referrer">
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js" integrity="sha384-q2ksSc8z6Q4ZUnxlfZj9AXZLpSdWmD3q/YrId1twTeNHh56fNh98YbJSpppzGUvL" crossorigin="anonymous">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js" integrity="sha384-q2ksSc8z6Q4ZUnxlfZj9AXZLpSdWmD3q/YrId1twTeNHh56fNh98YbJSpppzGUvL" crossorigin="anonymous" referrerpolicy="no-referrer">
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer">
     </script>
-    <script src="script.js"></script>
+    <script defer src="script.js"></script>
 </body>
 </html>
