@@ -334,12 +334,13 @@
 
             function applySettingsToEditors() {
                 if (!editors.html) return;
+                const compactDevice = window.matchMedia?.('(max-width: 820px), (pointer: coarse)').matches === true;
                 const opts = {
                     fontSize: settings.fontSize,
                     tabSize: settings.tabSize,
                     wordWrap: settings.wordWrap,
                     lineNumbers: settings.lineNumbers,
-                    minimap: { enabled: settings.minimap }
+                    minimap: { enabled: settings.minimap && !compactDevice }
                 };
                 Object.values(editors).forEach(ed => ed.updateOptions(opts));
             }
@@ -2265,6 +2266,7 @@
                 });
 
                 renderFileUI();
+                layoutActiveEditor();
             }
 
             function closeFileTab(id) {
@@ -2655,7 +2657,7 @@
             //  LAYOUT
             // ============================================================
             function toggleLayout() {
-                if (window.innerWidth <= 820) {
+                if (isMobileViewport()) {
                     showToast('Layout vertikal digunakan pada layar kecil');
                     return;
                 }
@@ -2678,7 +2680,7 @@
             //  SPLIT
             // ============================================================
             function initSplit() {
-                const isMobile = window.innerWidth <= 820;
+                const isMobile = isMobileViewport();
                 if (isMobile) {
                     if (splitInstance) { try { splitInstance.destroy(); } catch (_) {} }
                     splitInstance = null;
@@ -2705,6 +2707,10 @@
             }
 
             let editorLayoutFrame = 0;
+            function isMobileViewport() {
+                return window.matchMedia ? window.matchMedia('(max-width: 820px)').matches : window.innerWidth <= 820;
+            }
+
             function layoutActiveEditor() {
                 if (editorLayoutFrame) return;
                 editorLayoutFrame = requestAnimationFrame(() => {
@@ -2832,12 +2838,13 @@
             }
 
             function createEditors() {
+                const compactDevice = window.matchMedia?.('(max-width: 820px), (pointer: coarse)').matches === true;
                 const commonOpts = {
-                    automaticLayout: true,
+                    automaticLayout: false,
                     theme: theme === 'dark' ? 'vs-dark' : 'vs',
                     fontSize: settings.fontSize,
                     fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
-                    minimap: { enabled: settings.minimap },
+                    minimap: { enabled: settings.minimap && !compactDevice },
                     lineNumbers: settings.lineNumbers,
                     tabSize: settings.tabSize,
                     wordWrap: settings.wordWrap,
@@ -2979,7 +2986,7 @@
             window.addEventListener('resize', () => {
                 if (resizeTimer) clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(() => {
-                    const isMobile = window.innerWidth <= 820;
+                    const isMobile = isMobileViewport();
                     if (isMobile) {
                         if (splitInstance) { try { splitInstance.destroy(); } catch (_) {} }
                         splitInstance = null;
@@ -2992,6 +2999,7 @@
                         layoutBtn.querySelector('i').className = layoutMode === 'horizontal' ? 'fas fa-arrows-alt-h' : 'fas fa-arrows-alt-v';
                         layoutBtn.title = 'Rotasi layout';
                     }
+                    applySettingsToEditors();
                     layoutActiveEditor();
                     resizeTimer = null;
                 }, 200);
@@ -3153,7 +3161,7 @@
                         'dark');
                 } catch (_) {}
 
-                if (window.innerWidth <= 820) {
+                if (isMobileViewport()) {
                     sidebar.classList.add('collapsed');
                     sidebarOpen = false;
                     mobileSidebarBtn.setAttribute('aria-expanded', 'false');

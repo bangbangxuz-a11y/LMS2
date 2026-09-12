@@ -114,6 +114,7 @@
             flex-shrink: 0;
             z-index: 10;
             min-height: var(--header-min-height);
+            padding-top: max(6px, env(safe-area-inset-top));
         }
         .logo {
             display: flex;
@@ -886,6 +887,16 @@
                 min-height: 48px;
                 gap: 4px 8px;
             }
+            .header-actions {
+                max-width: 100%;
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                scrollbar-width: none;
+                overscroll-behavior-inline: contain;
+            }
+            .header-actions::-webkit-scrollbar {
+                display: none;
+            }
             .logo {
                 font-size: 15px;
             }
@@ -933,6 +944,9 @@
                 width: 94%;
                 top: 60px;
             }
+            .app {
+                height: calc(100dvh - var(--header-height, 48px));
+            }
         }
         @media (max-width: 480px) {
             .logo span {
@@ -963,6 +977,18 @@
         }
         #fileInput {
             display: none;
+        }
+        @media (hover: none) {
+            .btn:hover,
+            .btn-theme:hover,
+            .file-item:hover,
+            .editor-tab-btn:hover {
+                transform: none;
+                background: inherit;
+            }
+            .file-item .file-actions {
+                opacity: 1;
+            }
         }
         @media (prefers-reduced-motion: reduce) {
             *,
