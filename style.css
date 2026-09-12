@@ -316,6 +316,16 @@
             font-size: 12px;
             justify-content: center;
         }
+        .file-item.folder-item {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .file-item.folder-item .file-icon {
+            color: #f59e0b;
+        }
+        .file-item.folder-item .file-name {
+            font-weight: 600;
+        }
         /* ===== MAIN PANEL ===== */
         .main-panel {
             flex: 1;

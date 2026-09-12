@@ -42,6 +42,7 @@
             const sidebar = $('sidebar');
             const fileList = $('fileList');
             const newFileBtn = $('newFileBtn');
+            const newFolderBtn = $('newFolderBtn');
             const renameFileBtn = $('renameFileBtn');
             const toggleSidebarBtn = $('toggleSidebarBtn');
             const editorTabsBar = $('editorTabsBar');
@@ -194,9 +195,11 @@
                     }
                     for (const id of Object.keys(data.files)) {
                         const f = data.files[id];
-                        if (!validateFileName(id) || !f || typeof f !== 'object' || typeof f.content !== 'string' ||
+                        const isFolderEntry = !!f && (f.type === 'folder' || f.language === 'folder');
+                        if (!f || typeof f !== 'object' || typeof f.content !== 'string' ||
                             f.content.length > MAX_FILE_SIZE ||
-                            (f.type === 'asset' ? typeof f.mime !== 'string' : !['html', 'css', 'javascript', 'python'].includes(f.language))) {
+                            (isFolderEntry ? !validateFolderName(id) : 
+                                (!validateFileName(id) || (f.type === 'asset' ? typeof f.mime !== 'string' : !['html', 'css', 'javascript', 'python'].includes(f.language))))) {
                             console.warn('Invalid file entry, removing:', id);
                             delete data.files[id];
                         }
@@ -277,7 +280,9 @@
             }
 
             function getFileType(file) {
-                return file && (file.type === 'asset' || file.language === 'asset') ? 'asset' : 'code';
+                if (!file) return 'code';
+                if (file.type === 'folder' || file.language === 'folder') return 'folder';
+                return file.type === 'asset' || file.language === 'asset' ? 'asset' : 'code';
             }
 
             function isFileDirty(file) {
@@ -488,6 +493,17 @@
                 return normalizeFileName(pathname).replace(/^\/+/, '');
             }
 
+            function isFolder(file) {
+                return !!file && file.type === 'folder';
+            }
+
+            function validateFolderName(name) {
+                const normalized = normalizeVfsPath(name).replace(/\/+$/, '');
+                if (!normalized || normalized.length > 128 || normalized.startsWith('/') || normalized.endsWith('/')) return false;
+                if (normalized.split('/').some(part => !part || part === '.' || part === '..')) return false;
+                return /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/i.test(normalized);
+            }
+
             function getFileDirectory(fileId) {
                 const slash = normalizeVfsPath(fileId).lastIndexOf('/');
                 return slash === -1 ? '' : normalizeVfsPath(fileId).slice(0, slash + 1);
@@ -523,6 +539,11 @@
 
             function isCodeFile(file) {
                 return getFileType(file) === 'code';
+            }
+
+            function isFolderEntryLike(fileId) {
+                const file = files[fileId];
+                return !!file && (file.type === 'folder' || file.language === 'folder');
             }
 
             function getAssetDataUrl(file) {
@@ -2158,16 +2179,21 @@
                 });
                 order.forEach(id => {
                     const f = files[id];
+                    const isFolderEntry = isFolder(f);
+                    const displayName = id.split('/').filter(Boolean).pop() || id;
                     const div = document.createElement('div');
-                    div.className = 'file-item' + (id === selectedFileId ? ' active' : '');
+                    div.className = 'file-item' + (id === selectedFileId ? ' active' : '') + (isFolderEntry ? ' folder-item' : '');
                     div.dataset.fileId = id;
                     div.tabIndex = 0;
                     div.setAttribute('role', 'button');
-                    div.setAttribute('aria-label', id + (f.dirty ? ', perubahan belum disimpan' : ''));
+                    div.setAttribute('aria-label', id + (isFolderEntry ? ', folder' : (f.dirty ? ', perubahan belum disimpan' : '')));
                     const icon = document.createElement('span');
                     icon.className = 'file-icon';
-                    if (getFileType(f) === 'asset') icon.innerHTML = '<i class="fas fa-file-image" style="color:#64748b;"></i>';
-                    else if (f.language === 'html') icon.innerHTML = '<i class="fab fa-html5" style="color:#e34f26;"></i>';
+                    if (isFolderEntry) {
+                        icon.innerHTML = '<i class="fas fa-folder" style="color:#f59e0b;"></i>';
+                    } else if (getFileType(f) === 'asset') {
+                        icon.innerHTML = '<i class="fas fa-file-image" style="color:#64748b;"></i>';
+                    } else if (f.language === 'html') icon.innerHTML = '<i class="fab fa-html5" style="color:#e34f26;"></i>';
                     else if (f.language === 'css') icon.innerHTML = '<i class="fab fa-css3-alt" style="color:#2965f1;"></i>';
                     else if (f.language === 'javascript') icon.innerHTML =
                         '<i class="fab fa-js" style="color:#f7df1e;"></i>';
@@ -2176,25 +2202,39 @@
                     else icon.innerHTML = '<i class="fas fa-file"></i>';
                     const name = document.createElement('span');
                     name.className = 'file-name';
-                    name.textContent = id + (f.dirty ? ' ●' : '');
+                    name.textContent = displayName + (!isFolderEntry && f.dirty ? ' ●' : '');
+                    name.title = id;
                     const actions = document.createElement('span');
                     actions.className = 'file-actions';
                     const del = document.createElement('button');
                     del.className = 'delete-btn';
                     del.innerHTML = '<i class="fas fa-times"></i>';
-                    del.title = 'Hapus file';
-                    del.setAttribute('aria-label', 'Hapus ' + id);
+                    del.title = isFolderEntry ? 'Hapus folder' : 'Hapus file';
+                    del.setAttribute('aria-label', (isFolderEntry ? 'Hapus folder ' : 'Hapus ') + id);
                     del.onclick = (e) => { e.stopPropagation();
-                        deleteFile(id); };
+                        if (isFolderEntry) deleteFolder(id);
+                        else deleteFile(id); };
                     actions.appendChild(del);
                     div.appendChild(icon);
                     div.appendChild(name);
                     div.appendChild(actions);
-                    div.onclick = () => switchFile(id);
+                    div.onclick = () => {
+                        if (isFolderEntry) {
+                            selectedFileId = id;
+                            renderFileList();
+                            return;
+                        }
+                        switchFile(id);
+                    };
                     div.onkeydown = event => {
                         if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            switchFile(id);
+                            if (isFolderEntry) {
+                                selectedFileId = id;
+                                renderFileList();
+                            } else {
+                                switchFile(id);
+                            }
                         }
                     };
                     fileList.appendChild(div);
@@ -2342,7 +2382,7 @@
             //  FILE OPERATIONS
             // ============================================================
             function createNewFile() {
-                const requestedName = prompt('Nama file (contoh: about.html, utils.py):', 'newfile.py');
+                const requestedName = prompt('Nama file (contoh: about.html, utils.py, assets/app.js):', 'newfile.py');
                 if (!requestedName) return;
                 const name = normalizeFileName(requestedName);
                 if (!validateFileName(name)) { showToast('⚠️ Nama file tidak valid'); return; }
@@ -2371,6 +2411,55 @@
                 renderTabs();
                 switchFile(name);
                 showToast('✅ File dibuat: ' + name);
+            }
+
+            function createNewFolder() {
+                const requestedName = prompt('Nama folder (contoh: assets atau components/ui):', 'assets');
+                if (!requestedName) return;
+                const name = normalizeVfsPath(requestedName).replace(/\/+$/, '');
+                if (!validateFolderName(name)) { showToast('⚠️ Nama folder tidak valid'); return; }
+                const hasConflict = Object.keys(files).some(fileId => fileId === name || fileId.startsWith(name + '/'));
+                if (hasConflict) { showToast('⚠️ Folder sudah ada atau berisi item'); return; }
+
+                const newFolder = { content: '', committedContent: '', language: 'folder', type: 'folder', dirty: false, model: null };
+                const nextFiles = { ...files, [name]: newFolder };
+                if (!saveData(nextFiles, activeFileId, false, openFileIds)) return;
+
+                files[name] = newFolder;
+                selectedFileId = name;
+                renderFileList();
+                showToast('✅ Folder dibuat: ' + name);
+            }
+
+            function deleteFolder(id) {
+                const folderPath = normalizeVfsPath(id);
+                const children = Object.keys(files).filter(fileId => fileId !== id && fileId.startsWith(folderPath + '/'));
+                if (children.length && !confirm(`Hapus folder "${id}" dan ${children.length} item di dalamnya?`)) return;
+                if (!files[id]) return;
+                const nextFiles = { ...files };
+                Object.keys(nextFiles).forEach(fileId => {
+                    if (fileId === id || fileId.startsWith(folderPath + '/')) delete nextFiles[fileId];
+                });
+                const nextOpenFileIds = openFileIds.filter(fileId => nextFiles[fileId] && isCodeFile(nextFiles[fileId]));
+                const nextActiveFileId = activeFileId === id || (activeFileId && activeFileId.startsWith(folderPath + '/')) ?
+                    (nextOpenFileIds[0] || Object.keys(nextFiles).find(fileId => isCodeFile(nextFiles[fileId])) || '') : activeFileId;
+                if (!saveData(nextFiles, nextActiveFileId, false, nextOpenFileIds)) return;
+
+                delete files[id];
+                Object.keys(files).forEach(fileId => {
+                    if (fileId.startsWith(folderPath + '/')) delete files[fileId];
+                });
+                openFileIds = nextOpenFileIds;
+                if (activeFileId === id || (activeFileId && activeFileId.startsWith(folderPath + '/'))) activeFileId = nextActiveFileId;
+                if (selectedFileId === id || (selectedFileId && selectedFileId.startsWith(folderPath + '/'))) selectedFileId = nextActiveFileId;
+                renderFileList();
+                renderTabs();
+                if (activeFileId) switchFile(activeFileId);
+                else {
+                    ['html', 'css', 'js', 'python'].forEach(key => editors[key]?.setModel(null));
+                    document.querySelectorAll('.editor-slot').forEach(slot => slot.classList.remove('active'));
+                }
+                showToast('🗂️ Folder dihapus: ' + id);
             }
 
             function deleteFile(id) {
@@ -2842,6 +2931,7 @@
                 { id: 'save', label: 'Simpan semua', icon: 'fa-save', shortcut: 'Ctrl+S', action: () => saveAll(true) },
                 { id: 'format', label: 'Format kode (Monaco)', icon: 'fa-magic', shortcut: '', action: formatCode },
                 { id: 'newfile', label: 'Buat file baru', icon: 'fa-plus', shortcut: '', action: createNewFile },
+                { id: 'newfolder', label: 'Buat folder baru', icon: 'fa-folder-plus', shortcut: '', action: createNewFolder },
                 { id: 'rename', label: 'Ubah nama file', icon: 'fa-pen', shortcut: '', action: renameFile },
                 { id: 'toggleconsole', label: 'Toggle konsol', icon: 'fa-terminal', shortcut: '', action: toggleConsole },
                 { id: 'togglelayout', label: 'Rotasi layout', icon: 'fa-arrows-alt-h', shortcut: '', action: toggleLayout },
@@ -3165,6 +3255,7 @@
             layoutBtn.addEventListener('click', toggleLayout);
             themeBtn.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : 'light'));
             newFileBtn.addEventListener('click', createNewFile);
+            newFolderBtn.addEventListener('click', createNewFolder);
             renameFileBtn.addEventListener('click', renameFile);
             toggleSidebarBtn.addEventListener('click', toggleSidebar);
             mobileSidebarBtn.addEventListener('click', toggleSidebar);
