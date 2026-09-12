@@ -1667,8 +1667,8 @@
                 const isFull = isFullDocument(html);
 
                 if (isFull) {
-                    const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
-                    const baseHref = parsedDocument.querySelector('base[href]')?.getAttribute('href') || './';
+                    const parsedDocument = previewDocument;
+                    const baseHref = previewBaseHref;
                     const referencedCss = inlineReferencedAssets(parsedDocument, 'css', 'link[rel~="stylesheet"]', 'href', baseHref, project.entrypoint);
                     const referencedJs = inlineReferencedAssets(parsedDocument, 'javascript', 'script', 'src', baseHref, project.entrypoint);
                     inlineLocalAssets(parsedDocument, baseHref, project.entrypoint);
@@ -1688,8 +1688,8 @@
                     }
                     doc = '<!DOCTYPE html>' + parsedDocument.documentElement.outerHTML;
                 } else {
-                    const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
-                    const baseHref = parsedDocument.querySelector('base[href]')?.getAttribute('href') || './';
+                    const parsedDocument = previewDocument;
+                    const baseHref = previewBaseHref;
                     const referencedCss = inlineReferencedAssets(parsedDocument, 'css', 'link[rel~="stylesheet"]', 'href', baseHref, project.entrypoint);
                     const referencedJs = inlineReferencedAssets(parsedDocument, 'javascript', 'script', 'src', baseHref, project.entrypoint);
                     inlineLocalAssets(parsedDocument, baseHref, project.entrypoint);
@@ -2680,7 +2680,6 @@
                     monaco.editor.setTheme(mode === 'dark' ? 'vs-dark' : 'vs');
                 }
                 try { localStorage.setItem(THEME_KEY, mode); } catch (_) {}
-                buildPreview();
             }
 
             // ============================================================

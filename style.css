@@ -198,6 +198,7 @@
             height: calc(100dvh - var(--header-height, var(--header-min-height)));
             overflow: hidden;
             overscroll-behavior: contain;
+            contain: layout size;
         }
         /* ===== SIDEBAR ===== */
         .sidebar {
@@ -334,6 +335,7 @@
             border-right: 1px solid var(--border-color);
             overflow: hidden;
             min-width: 200px;
+            contain: layout paint;
         }
         .main-panel.vertical .editor-area {
             border-right: none;
@@ -454,6 +456,7 @@
             background: var(--bg-preview);
             overflow: hidden;
             min-width: 150px;
+            contain: layout paint;
         }
         .main-panel.vertical .preview-area {
             flex: 1 1 50%;
