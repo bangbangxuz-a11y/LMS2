@@ -2724,8 +2724,21 @@
             //  SILENT AUTO-SAVE — perbaikan
             // ============================================================
             function persistDrafts() {
-                if (!settings.autoSave || !editors.html || document.hidden || !persistenceDirty) return;
-                saveData(files, activeFileId, false, openFileIds, false);
+                if (!settings.autoSave || !editors.html || !persistenceDirty) return;
+                syncAllFileState();
+                const saved = saveData(files, activeFileId, true, openFileIds, false);
+                if (saved) {
+                    Object.keys(files).forEach(id => {
+                        const file = files[id];
+                        if (!file) return;
+                        const current = getCurrentContent(file);
+                        file.content = current;
+                        file.committedContent = current;
+                        file.dirty = false;
+                    });
+                    persistenceDirty = false;
+                    persistenceFlushed = true;
+                }
             }
 
             // ============================================================
@@ -3301,7 +3314,19 @@
             function flushPersistence() {
                 if (!settings.autoSave || persistenceFlushed || !editors.html) return;
                 syncAllFileState();
-                persistenceFlushed = saveData(files, activeFileId, false, openFileIds, false);
+                const saved = saveData(files, activeFileId, true, openFileIds, false);
+                if (saved) {
+                    Object.keys(files).forEach(id => {
+                        const file = files[id];
+                        if (!file) return;
+                        const current = getCurrentContent(file);
+                        file.content = current;
+                        file.committedContent = current;
+                        file.dirty = false;
+                    });
+                    persistenceDirty = false;
+                    persistenceFlushed = true;
+                }
             }
             window.addEventListener('beforeunload', flushPersistence);
             window.addEventListener('pagehide', () => {
