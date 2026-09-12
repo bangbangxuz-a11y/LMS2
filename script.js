@@ -104,6 +104,7 @@
             let layoutMode = 'horizontal';
             let toastTimer = null;
             let updateTimer = null;
+            let persistenceInterval = null;
             let previewStatusTimer = null;
             let previewSessionToken = '';
             let previewGeneration = 0;
@@ -2722,6 +2723,14 @@
                 });
             }
 
+            function scheduleIdleTask(task, timeout = 1000) {
+                if (typeof window.requestIdleCallback === 'function') {
+                    window.requestIdleCallback(task, { timeout });
+                } else {
+                    setTimeout(task, Math.min(timeout, 250));
+                }
+            }
+
             // ============================================================
             //  COMMAND PALETTE
             // ============================================================
@@ -2976,7 +2985,7 @@
                 }
 
                 setTimeout(layoutActiveEditor, 100);
-                setTimeout(buildPreview, 200);
+                scheduleIdleTask(buildPreview, 800);
             }
 
             // ============================================================
@@ -3032,6 +3041,10 @@
             window.addEventListener('beforeunload', flushPersistence);
             window.addEventListener('pagehide', () => {
                 flushPersistence();
+                if (persistenceInterval) {
+                    clearInterval(persistenceInterval);
+                    persistenceInterval = null;
+                }
                 if (window.__codeplaygroundWorkerUrl) {
                     URL.revokeObjectURL(window.__codeplaygroundWorkerUrl);
                     window.__codeplaygroundWorkerUrl = null;
@@ -3150,7 +3163,7 @@
                 } catch (_) {}
 
                 initVFS();
-                saveData();
+                scheduleIdleTask(() => saveData(), 1200);
                 applySettingsToEditors();
                 initSplit();
 
@@ -3172,7 +3185,7 @@
                 setTimeout(openConsole, 400);
 
                 // AUTO-SAVE SILENT setiap 15 detik
-                setInterval(persistDrafts, 15000);
+                persistenceInterval = setInterval(persistDrafts, 15000);
 
                 console.log('🚀 CodePlayground Pro siap! (Semua perbaikan selesai)');
             }
