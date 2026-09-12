@@ -63,7 +63,7 @@
             const wordWrapSelect = $('wordWrap');
             const lineNumbersSelect = $('lineNumbers');
             const minimapSelect = $('minimap');
-            const autoSaveCheck = $('autoSave');
+            const autoSaveCheck = $('autoSave') || $('autoRun');
             const refreshDelayRange = $('refreshDelay');
             const refreshDelayValue = $('refreshDelayValue');
             const mobileSidebarBtn = $('mobileSidebarBtn');
@@ -1817,12 +1817,16 @@
             function openConsole() {
                 consoleOpen = true;
                 consolePanel.classList.add('open');
+                toggleConsoleBtn.setAttribute('aria-expanded', 'true');
+                toggleConsoleBtn.setAttribute('aria-label', 'Tutup konsol');
                 toggleConsoleBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
             }
 
             function closeConsole() {
                 consoleOpen = false;
                 consolePanel.classList.remove('open');
+                toggleConsoleBtn.setAttribute('aria-expanded', 'false');
+                toggleConsoleBtn.setAttribute('aria-label', 'Buka konsol');
                 toggleConsoleBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
             }
 
@@ -2117,7 +2121,7 @@
                     div.dataset.fileId = id;
                     div.tabIndex = 0;
                     div.setAttribute('role', 'button');
-                    div.setAttribute('aria-label', 'Open ' + id);
+                    div.setAttribute('aria-label', id + (f.dirty ? ', perubahan belum disimpan' : ''));
                     const icon = document.createElement('span');
                     icon.className = 'file-icon';
                     if (getFileType(f) === 'asset') icon.innerHTML = '<i class="fas fa-file-image" style="color:#64748b;"></i>';
@@ -2137,7 +2141,7 @@
                     del.className = 'delete-btn';
                     del.innerHTML = '<i class="fas fa-times"></i>';
                     del.title = 'Hapus file';
-                    del.setAttribute('aria-label', 'Delete ' + id);
+                    del.setAttribute('aria-label', 'Hapus ' + id);
                     del.onclick = (e) => { e.stopPropagation();
                         deleteFile(id); };
                     actions.appendChild(del);
@@ -2177,6 +2181,7 @@
                     btn.tabIndex = 0;
                     btn.setAttribute('role', 'tab');
                     btn.setAttribute('aria-selected', id === activeFileId ? 'true' : 'false');
+                    btn.setAttribute('aria-label', `${id}${f.dirty ? ', perubahan belum disimpan' : ''}`);
                     btn.id = `editor-tab-${order.indexOf(id)}`;
                     btn.setAttribute('aria-controls', `${editorKey}EditorSlot`);
                     const label = document.createElement('span');
@@ -2254,7 +2259,9 @@
 
                 const slotMap = { html: 'htmlEditorSlot', css: 'cssEditorSlot', js: 'jsEditorSlot', python: 'pythonEditorSlot' };
                 Object.keys(slotMap).forEach(k => {
-                    document.getElementById(slotMap[k]).classList.toggle('active', k === editorKey);
+                    const slot = document.getElementById(slotMap[k]);
+                    slot.classList.toggle('active', k === editorKey);
+                    slot.setAttribute('aria-hidden', String(k !== editorKey));
                 });
 
                 renderFileUI();
@@ -2728,9 +2735,12 @@
             function openCmdPalette() {
                 cmdPalette.classList.toggle('open');
                 if (cmdPalette.classList.contains('open')) {
+                    cmdPalette.setAttribute('aria-hidden', 'false');
                     cmdInput.value = '';
                     cmdInput.focus();
                     renderCmdList('');
+                } else {
+                    cmdPalette.setAttribute('aria-hidden', 'true');
                 }
             }
 
@@ -2751,10 +2761,15 @@
 
             cmdInput.addEventListener('input', () => renderCmdList(cmdInput.value));
             cmdInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') cmdPalette.classList.remove('open');
+                if (e.key === 'Escape') {
+                    cmdPalette.classList.remove('open');
+                    cmdPalette.setAttribute('aria-hidden', 'true');
+                    cmdBtn.focus();
+                }
                 if (e.key === 'Enter') {
                     const first = cmdList.querySelector('.cmd-item');
                     if (first) { cmdPalette.classList.remove('open');
+                        cmdPalette.setAttribute('aria-hidden', 'true');
                         first.click(); }
                 }
             });
@@ -2774,11 +2789,13 @@
             function openModal(modal, initialFocus) {
                 modalTrigger = document.activeElement;
                 modal.classList.add('open');
+                modal.setAttribute('aria-hidden', 'false');
                 requestAnimationFrame(() => initialFocus && initialFocus.focus());
             }
 
             function closeModal(modal) {
                 modal.classList.remove('open');
+                modal.setAttribute('aria-hidden', 'true');
                 if (modalTrigger && typeof modalTrigger.focus === 'function') modalTrigger.focus();
                 modalTrigger = null;
             }
@@ -2987,6 +3004,7 @@
                 sidebarOpen = !sidebarOpen;
                 sidebar.classList.toggle('collapsed', !sidebarOpen);
                 mobileSidebarBtn.setAttribute('aria-label', sidebarOpen ? 'Close explorer' : 'Open explorer');
+                mobileSidebarBtn.setAttribute('aria-expanded', String(sidebarOpen));
                 mobileSidebarBtn.title = sidebarOpen ? 'Close explorer' : 'Open explorer';
                 toggleSidebarBtn.innerHTML = sidebarOpen ? '<i class="fas fa-chevron-left"></i>' :
                     '<i class="fas fa-chevron-right"></i>';
@@ -3015,7 +3033,7 @@
             //  EVENT BINDING
             // ============================================================
             runBtn.addEventListener('click', runCode);
-            runPythonBtn.addEventListener('click', runPythonCode);
+            runPythonBtn?.addEventListener('click', runPythonCode);
             saveBtn.addEventListener('click', () => saveAll(true));
             downloadBtn.addEventListener('click', downloadProject);
             uploadBtn.addEventListener('click', uploadFile);
@@ -3135,6 +3153,8 @@
                 if (window.innerWidth <= 820) {
                     sidebar.classList.add('collapsed');
                     sidebarOpen = false;
+                    mobileSidebarBtn.setAttribute('aria-expanded', 'false');
+                    mobileSidebarBtn.setAttribute('aria-label', 'Buka explorer');
                     toggleSidebarBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
                 }
 

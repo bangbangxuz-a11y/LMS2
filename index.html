@@ -2,62 +2,80 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-    <title>CodePlayground Pro — Final</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="CodePlayground Pro adalah editor kode HTML, CSS, JavaScript, dan Python berbasis web dengan live preview." />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CodePlayground Pro" />
+    <meta property="og:description" content="Editor kode berbasis web dengan live preview untuk HTML, CSS, JavaScript, dan Python." />
+    <meta property="og:locale" content="id_ID" />
+    <title>CodePlayground Pro | Editor Kode Web dengan Live Preview</title>
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "CodePlayground Pro",
+            "description": "Editor kode berbasis web dengan live preview untuk HTML, CSS, JavaScript, dan Python.",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Web browser",
+            "inLanguage": "id"
+        }
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/editor/editor.main.min.css" integrity="sha384-QOL+KMGDSHiTGpw4XDfyq5kJL37YaD/smO5a7/aNyBGQaFMNnrbYfDj+HzhC3daQ" crossorigin="anonymous" />
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Lewati ke editor</a>
     <!-- ===== HEADER ===== -->
     <header class="header">
-        <div class="logo">
+        <div class="logo" aria-label="CodePlayground Pro">
             <i class="fas fa-code"></i> CodePlayground <span>Pro</span>
         </div>
         <div class="header-actions">
-            <button class="btn mobile-sidebar-btn" id="mobileSidebarBtn" title="Open explorer" aria-label="Open explorer"><i class="fas fa-folder-tree"></i></button>
-            <button class="btn btn-primary" id="runBtn" title="Jalankan (Ctrl+Enter)"><i class="fas fa-play"></i><span>Run</span></button>
-            <button class="btn" id="saveBtn" title="Simpan (Ctrl+S)"><i class="fas fa-save"></i><span>Save</span></button>
-            <button class="btn" id="downloadBtn" title="Download Project (ZIP)"><i class="fas fa-download"></i><span>Download</span></button>
-            <button class="btn" id="uploadBtn" title="Upload file"><i class="fas fa-upload"></i><span>Upload</span></button>
-            <button class="btn" id="cdnBtn" title="Kelola CDN"><i class="fas fa-link"></i><span>CDN</span></button>
-            <button class="btn" id="formatBtn" title="Format kode (Monaco)"><i class="fas fa-magic"></i><span>Format</span></button>
-            <button class="btn" id="cmdBtn" title="Command Palette (Ctrl+Shift+P)"><i class="fas fa-terminal"></i><span>Cmd</span></button>
-            <button class="btn" id="settingsBtn" title="Settings"><i class="fas fa-cog"></i><span>Settings</span></button>
-            <button class="btn" id="layoutBtn" title="Rotasi layout"><i class="fas fa-arrows-alt-h"></i><span>Layout</span></button>
-            <button class="btn-theme" id="themeBtn" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false"><i class="fas fa-moon"></i></button>
+            <button type="button" class="btn mobile-sidebar-btn" id="mobileSidebarBtn" title="Buka explorer" aria-label="Buka explorer" aria-expanded="true" aria-controls="sidebar"><i class="fas fa-folder-tree" aria-hidden="true"></i></button>
+            <button type="button" class="btn btn-primary" id="runBtn" title="Jalankan (Ctrl+Enter)"><i class="fas fa-play" aria-hidden="true"></i><span>Run</span></button>
+            <button type="button" class="btn" id="saveBtn" title="Simpan (Ctrl+S)"><i class="fas fa-save" aria-hidden="true"></i><span>Save</span></button>
+            <button type="button" class="btn" id="downloadBtn" title="Download Project (ZIP)"><i class="fas fa-download" aria-hidden="true"></i><span>Download</span></button>
+            <button type="button" class="btn" id="uploadBtn" title="Upload file"><i class="fas fa-upload" aria-hidden="true"></i><span>Upload</span></button>
+            <button type="button" class="btn" id="cdnBtn" title="Kelola CDN"><i class="fas fa-link" aria-hidden="true"></i><span>CDN</span></button>
+            <button type="button" class="btn" id="formatBtn" title="Format kode (Monaco)"><i class="fas fa-magic" aria-hidden="true"></i><span>Format</span></button>
+            <button type="button" class="btn" id="cmdBtn" title="Command Palette (Ctrl+Shift+P)" aria-haspopup="dialog"><i class="fas fa-terminal" aria-hidden="true"></i><span>Cmd</span></button>
+            <button type="button" class="btn" id="settingsBtn" title="Settings"><i class="fas fa-cog" aria-hidden="true"></i><span>Settings</span></button>
+            <button type="button" class="btn" id="layoutBtn" title="Rotasi layout"><i class="fas fa-arrows-alt-h" aria-hidden="true"></i><span>Layout</span></button>
+            <button type="button" class="btn-theme" id="themeBtn" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false"><i class="fas fa-moon" aria-hidden="true"></i></button>
         </div>
     </header>
 
     <!-- ===== APP ===== -->
     <div class="app">
-        <div class="sidebar" id="sidebar">
+        <aside class="sidebar" id="sidebar" aria-label="File explorer">
             <div class="sidebar-header">
-                <span>Explorer</span>
-                <button id="toggleSidebarBtn" aria-label="Toggle explorer"><i class="fas fa-chevron-left"></i></button>
+                <h2>Explorer</h2>
+                <button type="button" id="toggleSidebarBtn" aria-label="Tutup explorer"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
             </div>
-            <div class="file-list" id="fileList"></div>
+            <div class="file-list" id="fileList" role="group" aria-label="Daftar file"></div>
             <div class="sidebar-footer">
-                <button class="btn" id="newFileBtn"><i class="fas fa-plus"></i> New</button>
-                <button class="btn" id="renameFileBtn" aria-label="Rename active file"><i class="fas fa-pen"></i></button>
+                <button type="button" class="btn" id="newFileBtn"><i class="fas fa-plus" aria-hidden="true"></i> New</button>
+                <button type="button" class="btn" id="renameFileBtn" aria-label="Rename active file"><i class="fas fa-pen" aria-hidden="true"></i></button>
             </div>
-        </div>
+        </aside>
 
-        <div class="main-panel" id="mainPanel">
+        <main class="main-panel" id="main-content" tabindex="-1">
             <div class="editor-area" id="editorArea">
                 <div class="editor-tabs-bar" id="editorTabsBar" role="tablist" aria-label="Open files"></div>
                 <div class="editor-container" id="editorContainer">
-                    <div class="editor-slot active" id="htmlEditorSlot" role="tabpanel" aria-label="HTML editor"></div>
-                    <div class="editor-slot" id="cssEditorSlot" role="tabpanel" aria-label="CSS editor"></div>
-                    <div class="editor-slot" id="jsEditorSlot" role="tabpanel" aria-label="JavaScript editor"></div>
-                    <div class="editor-slot" id="pythonEditorSlot" role="tabpanel" aria-label="Python editor"></div>
+                    <div class="editor-slot active" id="htmlEditorSlot" role="tabpanel" aria-label="HTML editor" aria-hidden="false"></div>
+                    <div class="editor-slot" id="cssEditorSlot" role="tabpanel" aria-label="CSS editor" aria-hidden="true"></div>
+                    <div class="editor-slot" id="jsEditorSlot" role="tabpanel" aria-label="JavaScript editor" aria-hidden="true"></div>
+                    <div class="editor-slot" id="pythonEditorSlot" role="tabpanel" aria-label="Python editor" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="preview-area" id="previewArea">
                 <div class="preview-header">
-                    <span><i class="fas fa-eye"></i> Preview <span class="preview-status" id="previewStatus">● live</span></span>
-                    <span style="font-size:11px;opacity:0.5;"><i class="fas fa-sync-alt"></i> auto</span>
+                    <span><i class="fas fa-eye" aria-hidden="true"></i> Preview <span class="preview-status" id="previewStatus" role="status" aria-live="polite">live</span></span>
+                    <span style="font-size:11px;opacity:0.5;"><i class="fas fa-sync-alt" aria-hidden="true"></i> auto</span>
                 </div>
                 <div class="preview-frame" id="previewFrame">
                     <iframe id="previewIframe" title="Live code preview" sandbox="allow-scripts allow-modals"></iframe>
@@ -66,33 +84,33 @@
                     <div class="console-header">
                         <span><i class="fas fa-terminal"></i> Konsol</span>
                         <div class="console-actions">
-                            <button id="clearConsoleBtn" aria-label="Clear console"><i class="fas fa-eraser"></i></button>
-                            <button id="toggleConsoleBtn" aria-label="Toggle console"><i class="fas fa-chevron-down"></i></button>
+                            <button type="button" id="clearConsoleBtn" aria-label="Clear console"><i class="fas fa-eraser" aria-hidden="true"></i></button>
+                            <button type="button" id="toggleConsoleBtn" aria-label="Buka konsol" aria-expanded="false" aria-controls="consoleBody"><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
                         </div>
                     </div>
                     <div class="console-body" id="consoleBody"><div class="log-empty">⟡ Konsol siap</div></div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- MODALS -->
-    <div class="modal-overlay" id="cdnModal" role="dialog" aria-modal="true" aria-labelledby="cdnModalTitle">
+    <div class="modal-overlay" id="cdnModal" role="dialog" aria-modal="true" aria-labelledby="cdnModalTitle" aria-hidden="true">
         <div class="modal">
             <h2 id="cdnModalTitle"><i class="fas fa-link" style="color:var(--accent);"></i> Kelola CDN</h2>
             <div class="sub">Tambahkan library eksternal (CSS/JS)</div>
             <div class="input-group">
                 <input type="text" id="cdnInput" placeholder="https://cdn.tailwindcss.com" />
-                <button id="addCdnBtn"><i class="fas fa-plus"></i> Tambah</button>
+                <button type="button" id="addCdnBtn"><i class="fas fa-plus" aria-hidden="true"></i> Tambah</button>
             </div>
             <ul class="cdn-list" id="cdnList"></ul>
             <div class="modal-actions">
-                <button class="btn-close" id="closeCdnModal">Tutup</button>
+                <button type="button" class="btn-close" id="closeCdnModal">Tutup</button>
             </div>
         </div>
     </div>
 
-    <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" aria-hidden="true">
         <div class="modal">
             <h2 id="settingsModalTitle"><i class="fas fa-sliders-h" style="color:var(--accent);"></i> Pengaturan</h2>
             <div class="sub">Draft tersimpan otomatis; Save menetapkan versi tersimpan.</div>
@@ -109,18 +127,19 @@
                 <div class="settings-row"><label for="autoRun">Auto Run</label><input type="checkbox" id="autoRun" checked /></div>
                 <div class="settings-row"><label for="refreshDelay">Refresh Delay</label><div class="range-wrap"><input type="range" id="refreshDelay" min="100" max="800" value="350" step="50" /><span id="refreshDelayValue">350ms</span></div></div>
             </div>
-            <div class="modal-actions"><button class="btn-close" id="closeSettingsModal">Tutup</button></div>
+            <div class="modal-actions"><button type="button" class="btn-close" id="closeSettingsModal">Tutup</button></div>
         </div>
     </div>
 
     <!-- COMMAND PALETTE -->
-    <div class="cmd-palette" id="cmdPalette">
+    <div class="cmd-palette" id="cmdPalette" role="dialog" aria-modal="true" aria-labelledby="cmdInputLabel" aria-hidden="true">
+        <label class="visually-hidden" id="cmdInputLabel" for="cmdInput">Cari perintah</label>
         <input type="text" id="cmdInput" aria-label="Search commands" placeholder="Ketik perintah..." />
         <div class="cmd-list" id="cmdList"></div>
     </div>
 
-    <div class="toast" id="toast"></div>
-    <input type="file" id="fileInput" accept=".html,.css,.js,.py,.png,.jpg,.jpeg,.gif,.webp,.svg,.ico,.woff,.woff2,.ttf,.otf,.mp3,.wav,.mp4,.webm,.pdf" />
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <input type="file" id="fileInput" aria-label="Pilih file untuk diunggah" accept=".html,.css,.js,.py,.png,.jpg,.jpeg,.gif,.webp,.svg,.ico,.woff,.woff2,.ttf,.otf,.mp3,.wav,.mp4,.webm,.pdf" />
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js" integrity="sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe" crossorigin="anonymous">
     </script>
