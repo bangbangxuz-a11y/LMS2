@@ -2407,9 +2407,18 @@
             }
 
             function createNewFile() {
-                const requestedName = prompt('Nama file (contoh: about.html, assets/app.js, components/ui.js):', 'assets/app.js');
+                const selectedFolderId = selectedFileId && isFolder(files[selectedFileId]) ? selectedFileId : '';
+                const selectedFolderPath = selectedFolderId ? normalizeVfsPath(selectedFolderId) : '';
+                const defaultName = selectedFolderPath ? `${selectedFolderPath}/index.html` : 'index.html';
+                const requestedName = prompt('Nama file (contoh: index.html):', defaultName);
                 if (!requestedName) return;
-                const name = normalizeFileName(requestedName);
+
+                let candidateName = normalizeFileName(requestedName);
+                if (selectedFolderPath && !candidateName.includes('/')) {
+                    candidateName = `${selectedFolderPath}/${candidateName}`;
+                }
+
+                const name = normalizeFileName(candidateName);
                 if (!validateFileName(name)) { showToast('⚠️ Nama file tidak valid'); return; }
                 if (files[name]) { showToast('⚠️ File sudah ada'); return; }
 
@@ -2442,6 +2451,7 @@
                 openFileIds.push(name);
                 attachModelListener(model, name);
                 activeFileId = name;
+                selectedFileId = name;
                 renderFileList();
                 renderTabs();
                 switchFile(name);
@@ -2449,9 +2459,18 @@
             }
 
             function createNewFolder() {
-                const requestedName = prompt('Nama folder (contoh: assets atau components/ui):', 'assets');
+                const selectedFolderId = selectedFileId && isFolder(files[selectedFileId]) ? selectedFileId : '';
+                const selectedFolderPath = selectedFolderId ? normalizeVfsPath(selectedFolderId) : '';
+                const defaultName = selectedFolderPath ? 'subfolder' : 'assets';
+                const requestedName = prompt('Nama folder:', defaultName);
                 if (!requestedName) return;
-                const name = normalizeVfsPath(requestedName).replace(/\/+$/, '');
+
+                let candidateName = normalizeVfsPath(requestedName).replace(/\/+$/, '');
+                if (selectedFolderPath && !candidateName.includes('/')) {
+                    candidateName = `${selectedFolderPath}/${candidateName}`;
+                }
+
+                const name = candidateName;
                 if (!validateFolderName(name)) { showToast('⚠️ Nama folder tidak valid'); return; }
                 const hasConflict = Object.keys(files).some(fileId => fileId === name || fileId.startsWith(name + '/'));
                 if (hasConflict) { showToast('⚠️ Folder sudah ada atau berisi item'); return; }
