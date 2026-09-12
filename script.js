@@ -3275,7 +3275,7 @@
 
             function startAfterFirstPaint() {
                 requestAnimationFrame(() => {
-                    setTimeout(init, 0);
+                    scheduleIdleTask(init, 800);
                 });
             }
 
