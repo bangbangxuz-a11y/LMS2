@@ -92,6 +92,10 @@
                     src: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js',
                     integrity: 'sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe'
                 },
+                monacoStyle: {
+                    href: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/editor/editor.main.min.css',
+                    integrity: 'sha384-QOL+KMGDSHiTGpw4XDfyq5kJL37YaD/smO5a7/aNyBGQaFMNnrbYfDj+HzhC3daQ'
+                },
                 split: {
                     src: 'https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js',
                     integrity: 'sha384-q2ksSc8z6Q4ZUnxlfZj9AXZLpSdWmD3q/YrId1twTeNHh56fNh98YbJSpppzGUvL'
@@ -2792,6 +2796,24 @@
                 return promise;
             }
 
+            function loadExternalStyle(asset) {
+                const key = `style:${asset.href}`;
+                if (externalAssetPromises.has(key)) return externalAssetPromises.get(key);
+                const promise = new Promise((resolve, reject) => {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = asset.href;
+                    link.integrity = asset.integrity;
+                    link.crossOrigin = 'anonymous';
+                    link.referrerPolicy = 'no-referrer';
+                    link.onload = () => resolve();
+                    link.onerror = () => reject(new Error(`Gagal memuat stylesheet: ${asset.href}`));
+                    document.head.appendChild(link);
+                });
+                externalAssetPromises.set(key, promise);
+                return promise;
+            }
+
             // ============================================================
             //  COMMAND PALETTE
             // ============================================================
@@ -2880,7 +2902,10 @@
             //  MONACO INIT
             // ============================================================
             function initMonaco() {
-                return loadExternalAsset(EXTERNAL_ASSETS.monacoLoader).then(() => new Promise((resolve, reject) => {
+                return Promise.all([
+                    loadExternalStyle(EXTERNAL_ASSETS.monacoStyle),
+                    loadExternalAsset(EXTERNAL_ASSETS.monacoLoader)
+                ]).then(() => new Promise((resolve, reject) => {
                     if (typeof monaco !== 'undefined') {
                         resolve(createEditors());
                         return;
@@ -3255,10 +3280,16 @@
                 console.log('🚀 CodePlayground Pro siap! (Semua perbaikan selesai)');
             }
 
+            function startAfterFirstPaint() {
+                requestAnimationFrame(() => {
+                    setTimeout(init, 0);
+                });
+            }
+
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', init);
+                document.addEventListener('DOMContentLoaded', startAfterFirstPaint, { once: true });
             } else {
-                init();
+                startAfterFirstPaint();
             }
 
             window.addEventListener('beforeunload', () => {
