@@ -127,6 +127,7 @@
             let updateTimer = null;
             let persistenceInterval = null;
             let previewStatusTimer = null;
+            let consoleScrollFrame = 0;
             let previewSessionToken = '';
             let previewGeneration = 0;
             let previewPageId = 'index.html';
@@ -142,6 +143,7 @@
             let pyodideRuntime = null;
             let pyodideLoadPromise = null;
             let pythonRunInProgress = false;
+            let appInitStarted = false;
             const PYTHON_PROJECT_DIR = '/codeplayground';
             let pythonFsPaths = new Set();
             let pythonFsDirectories = new Set();
@@ -1814,7 +1816,12 @@
                 div.appendChild(lvl);
                 div.appendChild(msg);
                 consoleBody.appendChild(div);
-                consoleBody.scrollTop = consoleBody.scrollHeight;
+                if (!consoleScrollFrame && consoleOpen) {
+                    consoleScrollFrame = requestAnimationFrame(() => {
+                        consoleScrollFrame = 0;
+                        consoleBody.scrollTop = consoleBody.scrollHeight;
+                    });
+                }
             }
 
             function renderConsole() {
@@ -2773,11 +2780,13 @@
             }
 
             function scheduleIdleTask(task, timeout = 1000) {
-                if (typeof window.requestIdleCallback === 'function') {
-                    window.requestIdleCallback(task, { timeout });
-                } else {
-                    setTimeout(task, Math.min(timeout, 250));
-                }
+                setTimeout(() => {
+                    if (typeof window.requestIdleCallback === 'function') {
+                        window.requestIdleCallback(task, { timeout: 1000 });
+                    } else {
+                        task();
+                    }
+                }, timeout);
             }
 
             function loadExternalAsset(asset) {
@@ -3275,7 +3284,15 @@
 
             function startAfterFirstPaint() {
                 requestAnimationFrame(() => {
-                    scheduleIdleTask(init, 800);
+                    appLoading.textContent = 'Klik untuk memuat editor...';
+                    const startInitialization = () => {
+                        if (appInitStarted) return;
+                        appInitStarted = true;
+                        init();
+                    };
+                    document.addEventListener('pointerdown', startInitialization, { once: true, capture: true });
+                    document.addEventListener('keydown', startInitialization, { once: true, capture: true });
+                    document.addEventListener('focusin', startInitialization, { once: true, capture: true });
                 });
             }
 
