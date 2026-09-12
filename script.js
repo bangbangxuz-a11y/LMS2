@@ -2181,10 +2181,12 @@
                     const f = files[id];
                     const isFolderEntry = isFolder(f);
                     const displayName = id.split('/').filter(Boolean).pop() || id;
+                    const depth = normalizeVfsPath(id).split('/').filter(Boolean).length - 1;
                     const div = document.createElement('div');
                     div.className = 'file-item' + (id === selectedFileId ? ' active' : '') + (isFolderEntry ? ' folder-item' : '');
                     div.dataset.fileId = id;
                     div.tabIndex = 0;
+                    div.style.paddingLeft = `${10 + depth * 14}px`;
                     div.setAttribute('role', 'button');
                     div.setAttribute('aria-label', id + (isFolderEntry ? ', folder' : (f.dirty ? ', perubahan belum disimpan' : '')));
                     const icon = document.createElement('span');
@@ -2381,12 +2383,45 @@
             // ============================================================
             //  FILE OPERATIONS
             // ============================================================
+            function ensureParentFolderForPath(filePath) {
+                const normalizedPath = normalizeVfsPath(filePath);
+                const parentPath = normalizedPath.includes('/') ? normalizedPath.slice(0, normalizedPath.lastIndexOf('/')) : '';
+                if (!parentPath) return true;
+                const segments = parentPath.split('/').filter(Boolean);
+                let current = '';
+                for (const segment of segments) {
+                    current = current ? `${current}/${segment}` : segment;
+                    if (!files[current]) {
+                        files[current] = {
+                            content: '',
+                            committedContent: '',
+                            language: 'folder',
+                            type: 'folder',
+                            dirty: false,
+                            model: null,
+                            modelListeners: null
+                        };
+                    }
+                }
+                return true;
+            }
+
             function createNewFile() {
-                const requestedName = prompt('Nama file (contoh: about.html, utils.py, assets/app.js):', 'newfile.py');
+                const requestedName = prompt('Nama file (contoh: about.html, assets/app.js, components/ui.js):', 'assets/app.js');
                 if (!requestedName) return;
                 const name = normalizeFileName(requestedName);
                 if (!validateFileName(name)) { showToast('⚠️ Nama file tidak valid'); return; }
                 if (files[name]) { showToast('⚠️ File sudah ada'); return; }
+
+                const parentPath = name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : '';
+                if (parentPath && !Object.keys(files).some(fileId => fileId === parentPath || (isFolder(files[fileId]) && normalizeVfsPath(fileId) === parentPath))) {
+                    const created = ensureParentFolderForPath(name);
+                    if (!created) {
+                        showToast('⚠️ Folder induk tidak valid');
+                        return;
+                    }
+                }
+
                 let lang = 'javascript';
                 const ext = name.split('.').pop().toLowerCase();
                 if (ext === 'html') lang = 'html';
@@ -2460,6 +2495,29 @@
                     document.querySelectorAll('.editor-slot').forEach(slot => slot.classList.remove('active'));
                 }
                 showToast('🗂️ Folder dihapus: ' + id);
+            }
+
+            function ensureFolderExistsForFilePath(filePath) {
+                const normalizedPath = normalizeVfsPath(filePath);
+                const parentPath = normalizedPath.includes('/') ? normalizedPath.slice(0, normalizedPath.lastIndexOf('/')) : '';
+                if (!parentPath) return true;
+                const segments = parentPath.split('/').filter(Boolean);
+                let currentPath = '';
+                for (const segment of segments) {
+                    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+                    if (!files[currentPath]) {
+                        files[currentPath] = {
+                            content: '',
+                            committedContent: '',
+                            language: 'folder',
+                            type: 'folder',
+                            dirty: false,
+                            model: null,
+                            modelListeners: null
+                        };
+                    }
+                }
+                return true;
             }
 
             function deleteFile(id) {
