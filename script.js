@@ -88,6 +88,10 @@
             const PYODIDE_SCRIPT_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`;
             const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
             const EXTERNAL_ASSETS = {
+                iconStyle: {
+                    href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
+                    integrity: 'sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B'
+                },
                 monacoLoader: {
                     src: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js',
                     integrity: 'sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe'
@@ -2823,6 +2827,12 @@
                 return promise;
             }
 
+            function loadIconStylesheet() {
+                return loadExternalStyle(EXTERNAL_ASSETS.iconStyle).catch(error => {
+                    console.warn('Icon stylesheet unavailable:', error);
+                });
+            }
+
             // ============================================================
             //  COMMAND PALETTE
             // ============================================================
@@ -3285,6 +3295,7 @@
             function startAfterFirstPaint() {
                 requestAnimationFrame(() => {
                     appLoading.textContent = 'Klik untuk memuat editor...';
+                    scheduleIdleTask(loadIconStylesheet, 1000);
                     const startInitialization = () => {
                         if (appInitStarted) return;
                         appInitStarted = true;
