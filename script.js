@@ -236,7 +236,7 @@
                             language: f.language,
                             type: f.type || (f.language === 'asset' ? 'asset' : 'code'),
                             mime: f.mime || '',
-                            dirty: commit ? false : isFileDirty(f)
+                            dirty: commit ? false : currentContent !== f.committedContent
                         };
                     });
                     const serialized = JSON.stringify(payload);
@@ -276,9 +276,10 @@
             function syncFileState(file) {
                 if (!file) return false;
                 const currentContent = getCurrentContent(file);
-                const changed = file.content !== currentContent || file.dirty !== isFileDirty(file);
+                const dirty = currentContent !== file.committedContent;
+                const changed = file.content !== currentContent || file.dirty !== dirty;
                 file.content = currentContent;
-                file.dirty = isFileDirty(file);
+                file.dirty = dirty;
                 return changed;
             }
 
