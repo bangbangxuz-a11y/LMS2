@@ -117,6 +117,7 @@
             let consoleEntries = [];
             let consoleOpen = false;
             let splitInstance = null;
+            let splitLoadPromise = null;
             let layoutMode = 'horizontal';
             let toastTimer = null;
             let updateTimer = null;
@@ -2712,26 +2713,41 @@
                     layoutBtn.title = 'Layout vertikal (layar kecil)';
                     return;
                 }
-                if (!window.Split) {
-                    loadExternalAsset(EXTERNAL_ASSETS.split).then(initSplit).catch(() => {
+                if (typeof window.Split !== 'function') {
+                    if (!splitLoadPromise) {
+                        splitLoadPromise = loadExternalAsset(EXTERNAL_ASSETS.split).finally(() => {
+                            splitLoadPromise = null;
+                        });
+                    }
+                    splitLoadPromise.then(() => {
+                        if (!isMobileViewport() && typeof window.Split === 'function') initSplit();
+                    }).catch(() => {
+                        mainPanel.classList.toggle('vertical', layoutMode === 'vertical');
                         layoutBtn.title = 'Layout otomatis';
                     });
                     return;
                 }
                 if (document.getElementById('editorArea') && document.getElementById('previewArea')) {
-                    if (splitInstance) { try { splitInstance.destroy(); } catch (_) {} }
-                    const dir = layoutMode === 'horizontal' ? 'horizontal' : 'vertical';
-                    splitInstance = Split(['#editorArea', '#previewArea'], {
-                        sizes: [55, 45],
-                        minSize: [200, 150],
-                        gutterSize: 5,
-                        direction: dir,
-                        cursor: dir === 'horizontal' ? 'col-resize' : 'row-resize',
-                        onDragEnd: layoutActiveEditor
-                    });
-                    mainPanel.classList.toggle('vertical', layoutMode === 'vertical');
-                    layoutBtn.querySelector('i').className = layoutMode === 'horizontal' ? 'fas fa-arrows-alt-h' : 'fas fa-arrows-alt-v';
-                    layoutBtn.title = 'Rotasi layout';
+                    try {
+                        if (splitInstance) { try { splitInstance.destroy(); } catch (_) {} }
+                        const dir = layoutMode === 'horizontal' ? 'horizontal' : 'vertical';
+                        splitInstance = window.Split(['#editorArea', '#previewArea'], {
+                            sizes: [55, 45],
+                            minSize: [200, 150],
+                            gutterSize: 5,
+                            direction: dir,
+                            cursor: dir === 'horizontal' ? 'col-resize' : 'row-resize',
+                            onDragEnd: layoutActiveEditor
+                        });
+                        mainPanel.classList.toggle('vertical', layoutMode === 'vertical');
+                        layoutBtn.querySelector('i').className = layoutMode === 'horizontal' ? 'fas fa-arrows-alt-h' : 'fas fa-arrows-alt-v';
+                        layoutBtn.title = 'Rotasi layout';
+                    } catch (error) {
+                        splitInstance = null;
+                        mainPanel.classList.toggle('vertical', layoutMode === 'vertical');
+                        layoutBtn.title = 'Layout otomatis';
+                        console.warn('Split layout unavailable:', error);
+                    }
                 }
             }
 
