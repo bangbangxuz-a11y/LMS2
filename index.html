@@ -23,8 +23,12 @@
             "inLanguage": "id"
         }
     </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B" crossorigin="anonymous" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/editor/editor.main.min.css" integrity="sha384-QOL+KMGDSHiTGpw4XDfyq5kJL37YaD/smO5a7/aNyBGQaFMNnrbYfDj+HzhC3daQ" crossorigin="anonymous" />
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" as="style" integrity="sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'" />
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/editor/editor.main.min.css" as="style" integrity="sha384-QOL+KMGDSHiTGpw4XDfyq5kJL37YaD/smO5a7/aNyBGQaFMNnrbYfDj+HzhC3daQ" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B" crossorigin="anonymous" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/editor/editor.main.min.css" integrity="sha384-QOL+KMGDSHiTGpw4XDfyq5kJL37YaD/smO5a7/aNyBGQaFMNnrbYfDj+HzhC3daQ" crossorigin="anonymous" />
+    </noscript>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -63,10 +67,11 @@
             </div>
         </aside>
 
-        <main class="main-panel" id="mainPanel" tabindex="-1">
+        <main class="main-panel" id="mainPanel" tabindex="-1" aria-busy="true">
             <div class="editor-area" id="editorArea">
                 <div class="editor-tabs-bar" id="editorTabsBar" role="tablist" aria-label="Open files"></div>
                 <div class="editor-container" id="editorContainer">
+                    <div class="app-loading" id="appLoading" role="status" aria-live="polite">Memuat editor...</div>
                     <div class="editor-slot active" id="htmlEditorSlot" role="tabpanel" aria-label="HTML editor" aria-hidden="false"></div>
                     <div class="editor-slot" id="cssEditorSlot" role="tabpanel" aria-label="CSS editor" aria-hidden="true"></div>
                     <div class="editor-slot" id="jsEditorSlot" role="tabpanel" aria-label="JavaScript editor" aria-hidden="true"></div>
@@ -143,12 +148,6 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <input type="file" id="fileInput" aria-label="Pilih file untuk diunggah" accept=".html,.css,.js,.py,.png,.jpg,.jpeg,.gif,.webp,.svg,.ico,.woff,.woff2,.ttf,.otf,.mp3,.wav,.mp4,.webm,.pdf" />
 
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js" integrity="sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe" crossorigin="anonymous" referrerpolicy="no-referrer">
-    </script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js" integrity="sha384-q2ksSc8z6Q4ZUnxlfZj9AXZLpSdWmD3q/YrId1twTeNHh56fNh98YbJSpppzGUvL" crossorigin="anonymous" referrerpolicy="no-referrer">
-    </script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer">
-    </script>
     <script defer src="script.js"></script>
 </body>
 </html>

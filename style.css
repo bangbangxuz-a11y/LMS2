@@ -422,6 +422,20 @@
             position: relative;
             overflow: hidden;
         }
+        .app-loading {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: var(--bg-editor);
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        .app-loading[hidden] {
+            display: none;
+        }
         .editor-slot {
             display: none;
             width: 100%;

@@ -38,6 +38,7 @@
             const fileInput = $('fileInput');
             const toast = $('toast');
             const mainPanel = $('mainPanel');
+            const appLoading = $('appLoading');
             const sidebar = $('sidebar');
             const fileList = $('fileList');
             const newFileBtn = $('newFileBtn');
@@ -86,6 +87,21 @@
             const PYODIDE_VERSION = '0.26.2';
             const PYODIDE_SCRIPT_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`;
             const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+            const EXTERNAL_ASSETS = {
+                monacoLoader: {
+                    src: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js',
+                    integrity: 'sha384-IXKqkSd8dPlMLRSjIIxdLeshFYpxdYlkI32bLhsV+yZDD8awNbI2+kmFgULpHUBe'
+                },
+                split: {
+                    src: 'https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js',
+                    integrity: 'sha384-q2ksSc8z6Q4ZUnxlfZj9AXZLpSdWmD3q/YrId1twTeNHh56fNh98YbJSpppzGUvL'
+                },
+                jszip: {
+                    src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+                    integrity: 'sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG'
+                }
+            };
+            const externalAssetPromises = new Map();
 
             let settings = {
                 fontSize: 14,
@@ -1687,10 +1703,16 @@
             // ============================================================
             //  DOWNLOAD PROJECT (ZIP)
             // ============================================================
-            function downloadProject() {
+            async function downloadProject() {
                 if (typeof JSZip === 'undefined') {
-                    showToast('⚠️ Library JSZip tidak dimuat');
-                    return;
+                    try {
+                        showToast('Memuat fitur download...');
+                        await loadExternalAsset(EXTERNAL_ASSETS.jszip);
+                    } catch (error) {
+                        console.error(error);
+                        showToast('⚠️ Library JSZip tidak dimuat');
+                        return;
+                    }
                 }
                 syncAllFileState();
                 const brokenReferences = findBrokenLocalReferences();
@@ -2690,7 +2712,13 @@
                     layoutBtn.title = 'Layout vertikal (layar kecil)';
                     return;
                 }
-                if (window.Split && document.getElementById('editorArea') && document.getElementById('previewArea')) {
+                if (!window.Split) {
+                    loadExternalAsset(EXTERNAL_ASSETS.split).then(initSplit).catch(() => {
+                        layoutBtn.title = 'Layout otomatis';
+                    });
+                    return;
+                }
+                if (document.getElementById('editorArea') && document.getElementById('previewArea')) {
                     if (splitInstance) { try { splitInstance.destroy(); } catch (_) {} }
                     const dir = layoutMode === 'horizontal' ? 'horizontal' : 'vertical';
                     splitInstance = Split(['#editorArea', '#previewArea'], {
@@ -2729,6 +2757,22 @@
                 } else {
                     setTimeout(task, Math.min(timeout, 250));
                 }
+            }
+
+            function loadExternalAsset(asset) {
+                if (externalAssetPromises.has(asset.src)) return externalAssetPromises.get(asset.src);
+                const promise = new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = asset.src;
+                    script.integrity = asset.integrity;
+                    script.crossOrigin = 'anonymous';
+                    script.referrerPolicy = 'no-referrer';
+                    script.onload = () => resolve();
+                    script.onerror = () => reject(new Error(`Gagal memuat dependency: ${asset.src}`));
+                    document.head.appendChild(script);
+                });
+                externalAssetPromises.set(asset.src, promise);
+                return promise;
             }
 
             // ============================================================
@@ -2819,7 +2863,7 @@
             //  MONACO INIT
             // ============================================================
             function initMonaco() {
-                return new Promise((resolve, reject) => {
+                return loadExternalAsset(EXTERNAL_ASSETS.monacoLoader).then(() => new Promise((resolve, reject) => {
                     if (typeof monaco !== 'undefined') {
                         resolve(createEditors());
                         return;
@@ -2843,7 +2887,7 @@
                         clearTimeout(timeout);
                         reject(error instanceof Error ? error : new Error('Monaco load failed'));
                     });
-                });
+                }));
             }
 
             function createEditors() {
@@ -3147,6 +3191,8 @@
                     await initMonaco();
                 } catch (err) {
                     console.error('Monaco initialization failed:', err);
+                    mainPanel.setAttribute('aria-busy', 'false');
+                    appLoading.textContent = 'Editor gagal dimuat. Periksa koneksi lalu muat ulang.';
                     showToast('⚠️ Editor gagal dimuat. Periksa koneksi CDN lalu muat ulang.');
                     return;
                 }
@@ -3166,6 +3212,8 @@
                 scheduleIdleTask(() => saveData(), 1200);
                 applySettingsToEditors();
                 initSplit();
+                appLoading.hidden = true;
+                mainPanel.setAttribute('aria-busy', 'false');
 
                 try {
                     const savedTheme = localStorage.getItem(THEME_KEY);
