@@ -27,10 +27,25 @@
                 }
             },
             "presentation": {
-                "reveal": "silent",
+                "reveal": "always",
                 "panel": "dedicated",
+                "focus": false,
                 "clear": false,
                 "showReuseMessage": false
+            }
+        },
+        {
+            "label": "CodePlayground: Open Bash Terminal",
+            "type": "shell",
+            "command": "bash",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true,
+                "close": false
             }
         }
     ]
