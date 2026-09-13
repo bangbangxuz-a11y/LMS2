@@ -35,6 +35,8 @@ python3 indeks.py
 ```
 
 Gunakan port selain `8000` jika `backend.py` sedang berjalan pada port tersebut.
+Setelah memperbarui aplikasi, lakukan hard refresh browser (`Ctrl+Shift+R`) agar
+file JavaScript lama tidak digunakan.
 
 Jika backend tidak aktif, aplikasi tetap mencoba menjalankan Python melalui
 Pyodide di browser dengan batasan WebAssembly.

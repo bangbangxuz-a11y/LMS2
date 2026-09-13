@@ -2210,7 +2210,7 @@
             function pythonRequiresNativeBackend() {
                 return Object.values(files)
                     .filter(file => file.language === 'python')
-                    .some(file => /(?:from\s+http\.server\s+import|import\s+socket|serve_forever\s*\(|\.listen\s*\(|\.bind\s*\()/m.test(getCurrentContent(file)));
+                    .some(file => /(?:from\s+http\.server\s+import|import\s+(?:socket|socketserver)|(?:HTTPServer|ThreadingHTTPServer|TCPServer|BaseHTTPRequestHandler)|serve_forever\s*\(|(?:\.listen|\.bind|start_server)\s*\()/m.test(getCurrentContent(file)));
             }
 
             async function runPythonOnBackend(file) {
