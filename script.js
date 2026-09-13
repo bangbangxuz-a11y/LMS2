@@ -48,6 +48,7 @@
             const sidebar = $('sidebar');
             const fileList = $('fileList');
             const newFileBtn = $('newFileBtn');
+            const newFolderBtn = $('newFolderBtn');
             const renameFileBtn = $('renameFileBtn');
             const toggleSidebarBtn = $('toggleSidebarBtn');
             const editorTabsBar = $('editorTabsBar');
@@ -176,6 +177,7 @@
 
             // --- VFS ---
             let files = {};
+            let folders = new Set();
             let activeFileId = 'index.html';
             let selectedFileId = 'index.html';
             let openFileIds = [];
@@ -208,6 +210,7 @@
                         console.warn('Invalid data structure, using defaults');
                         return null;
                     }
+                    data.folders = Array.isArray(data.folders) ? data.folders.filter(folder => validateFolderName(folder)) : [];
                     if (Object.keys(data.files).length > MAX_FILE_COUNT) {
                         console.warn('Stored file count exceeds the maximum, using defaults');
                         return null;
@@ -251,6 +254,7 @@
                     }
                     const payload = {
                         files: {},
+                        folders: [...folders],
                         activeFileId: sourceActiveFileId,
                         openFileIds: sourceOpenFileIds.filter(id => sourceFiles[id] && isCodeFile(sourceFiles[id])),
                         version: STORAGE_VERSION
@@ -564,6 +568,12 @@
                 if (!normalized || normalized.length > 128 || normalized.startsWith('/') || normalized.endsWith('/')) return false;
                 if (normalized.split('/').some(part => !part || part === '.' || part === '..')) return false;
                 return /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(normalized) && /\.[A-Za-z0-9]{1,12}$/i.test(normalized);
+            }
+
+            function validateFolderName(name) {
+                const normalized = normalizeVfsPath(name);
+                return !!normalized && normalized.length <= 128 && !normalized.endsWith('/') &&
+                    normalized.split('/').every(part => /^[A-Za-z0-9._-]+$/.test(part) && part !== '.' && part !== '..');
             }
 
             function getLanguageFromFileName(name) {
@@ -2214,6 +2224,14 @@
             function renderFileList() {
                 fileList.innerHTML = '';
                 const nodes = {};
+                folders.forEach(folderPath => {
+                    const parts = normalizeVfsPath(folderPath).split('/');
+                    let path = '';
+                    parts.forEach(folder => {
+                        path = path ? `${path}/${folder}` : folder;
+                        nodes[path] ||= { type: 'folder', path, name: folder, parent: path.slice(0, path.lastIndexOf('/')), children: [] };
+                    });
+                });
                 Object.keys(files).forEach(id => {
                     const parts = normalizeVfsPath(id).split('/');
                     let path = '';
@@ -2460,6 +2478,23 @@
                 renderTabs();
                 switchFile(name);
                 showToast('✅ File dibuat: ' + name);
+            }
+
+            function createNewFolder() {
+                const requestedName = prompt('Nama folder (contoh: components/ui):', 'components');
+                if (!requestedName) return;
+                const name = normalizeVfsPath(requestedName);
+                if (!validateFolderName(name)) { showToast('⚠️ Nama folder tidak valid'); return; }
+                if (folders.has(name) || Object.keys(files).some(id => id === name || id.startsWith(`${name}/`))) {
+                    showToast('⚠️ Folder sudah ada');
+                    return;
+                }
+                const parts = name.split('/');
+                for (let index = 1; index <= parts.length; index += 1) folders.add(parts.slice(0, index).join('/'));
+                expandedFolders.add(name);
+                saveData();
+                renderFileList();
+                showToast(`✅ Folder dibuat: ${name}`);
             }
 
             const PROJECT_TEMPLATES = [
@@ -3131,6 +3166,7 @@
             // ============================================================
             function initVFS(savedData = loadData()) {
                 const saved = savedData;
+                folders = new Set(saved?.folders || []);
                 if (saved && saved.files && Object.keys(saved.files).length > 0) {
                     files = {};
                     Object.keys(saved.files).forEach(id => {
@@ -3310,6 +3346,7 @@
             layoutBtn.addEventListener('click', toggleLayout);
             themeBtn.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : 'light'));
             newFileBtn.addEventListener('click', createNewFile);
+            newFolderBtn.addEventListener('click', createNewFolder);
             renameFileBtn.addEventListener('click', renameFile);
             toggleSidebarBtn.addEventListener('click', toggleSidebar);
             mobileSidebarBtn.addEventListener('click', toggleSidebar);
