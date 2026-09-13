@@ -50,6 +50,7 @@
             const newFileBtn = $('newFileBtn');
             const newFolderBtn = $('newFolderBtn');
             const renameFileBtn = $('renameFileBtn');
+            const deleteItemBtn = $('deleteItemBtn');
             const toggleSidebarBtn = $('toggleSidebarBtn');
             const openWorkspaceBtn = $('openWorkspaceBtn');
             const editorTabsBar = $('editorTabsBar');
@@ -180,6 +181,7 @@
             // --- VFS ---
             let files = {};
             let folders = new Set();
+            let selectedFolderPath = '';
             let workspaceDirectoryHandle = null;
             let activeFileId = 'index.html';
             let selectedFileId = 'index.html';
@@ -2282,13 +2284,22 @@
                 const renderNodes = (items, parent, depth = 0) => items.forEach(node => {
                     if (node.type === 'folder') {
                         const folder = document.createElement('div');
-                        folder.className = 'file-item folder-item';
+                        folder.className = 'file-item folder-item' + (selectedFolderPath === node.path ? ' active' : '');
                         folder.style.paddingLeft = `${10 + depth * 14}px`;
                         folder.tabIndex = 0;
                         folder.setAttribute('role', 'button');
                         folder.setAttribute('aria-expanded', String(expandedFolders.has(node.path)));
                         folder.innerHTML = `<span class="file-icon"><i class="fas ${expandedFolders.has(node.path) ? 'fa-folder-open' : 'fa-folder'}"></i></span><span class="file-name">${node.name}</span>`;
-                        folder.onclick = () => { expandedFolders.has(node.path) ? expandedFolders.delete(node.path) : expandedFolders.add(node.path); renderFileList(); };
+                        folder.onclick = () => { selectedFolderPath = node.path; selectedFileId = ''; renderFileList(); };
+                        folder.ondblclick = () => { expandedFolders.has(node.path) ? expandedFolders.delete(node.path) : expandedFolders.add(node.path); renderFileList(); };
+                        folder.onkeydown = event => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                selectedFolderPath = node.path;
+                                selectedFileId = '';
+                                renderFileList();
+                            }
+                        };
                         parent.appendChild(folder);
                         if (expandedFolders.has(node.path)) renderNodes(sortNodes(node.children), parent, depth + 1);
                         return;
@@ -2328,7 +2339,10 @@
                     div.appendChild(icon);
                     div.appendChild(name);
                     div.appendChild(actions);
-                    div.onclick = () => switchFile(id);
+                    div.onclick = () => {
+                        selectedFolderPath = getFileDirectory(id).replace(/\/$/, '');
+                        switchFile(id);
+                    };
                     div.onkeydown = event => {
                         if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
@@ -2481,9 +2495,11 @@
             //  FILE OPERATIONS
             // ============================================================
             function createNewFile() {
-                const requestedName = prompt('Nama file (contoh: about.html, utils.py):', 'newfile.py');
+                const defaultName = selectedFolderPath ? `${selectedFolderPath}/newfile.py` : 'newfile.py';
+                const requestedName = prompt('Nama file (contoh: about.html, utils.py):', defaultName);
                 if (!requestedName) return;
-                const name = normalizeFileName(requestedName);
+                const enteredName = normalizeFileName(requestedName);
+                const name = selectedFolderPath && !enteredName.includes('/') ? `${selectedFolderPath}/${enteredName}` : enteredName;
                 if (!validateFileName(name)) { showToast('⚠️ Nama file tidak valid'); return; }
                 if (files[name]) { showToast('⚠️ File sudah ada'); return; }
                 let lang = 'javascript';
@@ -2517,9 +2533,11 @@
                     showToast('⚠️ Browser memblokir dialog nama folder');
                     return;
                 }
-                const requestedName = prompt('Nama folder (contoh: components/ui):', 'components');
+                const defaultName = selectedFolderPath ? `${selectedFolderPath}/new-folder` : 'new-folder';
+                const requestedName = prompt('Nama folder (contoh: components/ui):', defaultName);
                 if (!requestedName) return;
-                const name = normalizeVfsPath(requestedName);
+                const enteredName = normalizeVfsPath(requestedName);
+                const name = selectedFolderPath && !enteredName.includes('/') ? `${selectedFolderPath}/${enteredName}` : enteredName;
                 if (!validateFolderName(name)) { showToast('⚠️ Nama folder tidak valid'); return; }
                 if (folders.has(name) || Object.keys(files).some(id => id === name || id.startsWith(`${name}/`))) {
                     showToast('⚠️ Folder sudah ada');
@@ -2583,6 +2601,7 @@
                 });
                 files = {};
                 folders = new Set();
+                selectedFolderPath = '';
                 expandedFolders = new Set();
                 folderTreeInitialized = false;
                 Object.entries(template.files).forEach(([id, content]) => {
@@ -2599,6 +2618,63 @@
                 saveData();
                 buildPreview();
                 showToast(`Template ${template.title} diterapkan`);
+            }
+
+            function renameFolder() {
+                const oldPath = selectedFolderPath;
+                if (!oldPath) return;
+                const parent = oldPath.includes('/') ? oldPath.slice(0, oldPath.lastIndexOf('/')) : '';
+                const currentName = oldPath.slice(oldPath.lastIndexOf('/') + 1);
+                const requestedName = prompt('Nama folder baru:', currentName);
+                if (!requestedName) return;
+                const enteredName = normalizeVfsPath(requestedName);
+                const newPath = enteredName.includes('/') ? enteredName : (parent ? `${parent}/${enteredName}` : enteredName);
+                if (!validateFolderName(newPath) || newPath === oldPath || newPath.startsWith(`${oldPath}/`)) return showToast('⚠️ Nama folder tidak valid');
+                if (folders.has(newPath) || Object.keys(files).some(id => id === newPath || id.startsWith(`${newPath}/`))) return showToast('⚠️ Nama folder sudah dipakai');
+                const renamedFiles = {};
+                Object.entries(files).forEach(([id, file]) => {
+                    const nextId = id === oldPath ? newPath : id.startsWith(`${oldPath}/`) ? `${newPath}${id.slice(oldPath.length)}` : id;
+                    if (file.modelListeners && nextId !== id) file.modelListeners.dispose();
+                    renamedFiles[nextId] = file;
+                });
+                const renamedFolders = new Set([...folders].map(folder => folder === oldPath ? newPath : folder.startsWith(`${oldPath}/`) ? `${newPath}${folder.slice(oldPath.length)}` : folder));
+                files = renamedFiles;
+                folders = renamedFolders;
+                openFileIds = openFileIds.map(id => id.startsWith(`${oldPath}/`) ? `${newPath}${id.slice(oldPath.length)}` : id);
+                if (activeFileId.startsWith(`${oldPath}/`)) activeFileId = `${newPath}${activeFileId.slice(oldPath.length)}`;
+                if (selectedFileId.startsWith(`${oldPath}/`)) selectedFileId = `${newPath}${selectedFileId.slice(oldPath.length)}`;
+                if (previewPageId.startsWith(`${oldPath}/`)) previewPageId = `${newPath}${previewPageId.slice(oldPath.length)}`;
+                Object.keys(files).forEach(id => { if (files[id].model && !files[id].modelListeners) attachModelListener(files[id].model, id); });
+                selectedFolderPath = newPath;
+                expandedFolders.add(newPath);
+                saveData();
+                renderFileUI();
+                showToast(`✅ Folder diubah: ${newPath}`);
+            }
+
+            function deleteSelectedFolder() {
+                const folderPath = selectedFolderPath;
+                if (!folderPath) return;
+                const childFiles = Object.keys(files).filter(id => id.startsWith(`${folderPath}/`));
+                if (childFiles.length >= Object.keys(files).length) return showToast('⚠️ Project harus memiliki minimal satu file');
+                if (!confirm(`Hapus folder "${folderPath}" dan seluruh isinya?`)) return;
+                childFiles.forEach(id => {
+                    files[id].modelListeners?.dispose();
+                    files[id].model?.dispose();
+                    delete files[id];
+                });
+                folders = new Set([...folders].filter(folder => folder !== folderPath && !folder.startsWith(`${folderPath}/`)));
+                openFileIds = openFileIds.filter(id => !childFiles.includes(id));
+                if (childFiles.includes(activeFileId)) {
+                    activeFileId = openFileIds[0] || Object.keys(files).find(id => isCodeFile(files[id])) || '';
+                    selectedFileId = activeFileId;
+                }
+                selectedFolderPath = '';
+                expandedFolders.delete(folderPath);
+                saveData();
+                renderFileUI();
+                if (activeFileId) switchFile(activeFileId);
+                showToast(`🗑️ Folder dihapus: ${folderPath}`);
             }
 
             function deleteFile(id) {
@@ -2649,6 +2725,7 @@
             }
 
             function renameFile() {
+                if (selectedFolderPath) return renameFolder();
                 const oldName = activeFileId;
                 if (!files[oldName] || !isCodeFile(files[oldName])) return;
                 const requestedName = prompt('Nama baru:', oldName);
@@ -2726,6 +2803,16 @@
                 renderTabs();
                 switchFile(newName);
                 showToast('✏️ File diubah: ' + newName);
+            }
+
+            function deleteSelectedItem() {
+                if (selectedFolderPath) {
+                    deleteSelectedFolder();
+                } else if (selectedFileId && files[selectedFileId]) {
+                    deleteFile(selectedFileId);
+                } else if (activeFileId) {
+                    deleteFile(activeFileId);
+                }
             }
 
             // ============================================================
@@ -3404,6 +3491,7 @@
             });
             openWorkspaceBtn?.addEventListener('click', connectLocalWorkspace);
             renameFileBtn.addEventListener('click', renameFile);
+            deleteItemBtn?.addEventListener('click', deleteSelectedItem);
             toggleSidebarBtn.addEventListener('click', toggleSidebar);
             mobileSidebarBtn.addEventListener('click', toggleSidebar);
             clearConsoleBtn.addEventListener('click', clearConsole);
