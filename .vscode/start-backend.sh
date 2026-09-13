@@ -7,6 +7,7 @@ cd "$workspace_root"
 export CODEPLAYGROUND_HOST="${CODEPLAYGROUND_HOST:-0.0.0.0}"
 export CODEPLAYGROUND_PORT="${CODEPLAYGROUND_PORT:-8001}"
 export CODEPLAYGROUND_OPEN_BROWSER="${CODEPLAYGROUND_OPEN_BROWSER:-1}"
+backend_url="http://127.0.0.1:${CODEPLAYGROUND_PORT}"
 
 if [[ ! "$CODEPLAYGROUND_PORT" =~ ^[0-9]+$ ]] || (( CODEPLAYGROUND_PORT < 1024 || CODEPLAYGROUND_PORT > 65535 )); then
 	printf 'Invalid CODEPLAYGROUND_PORT: %s (expected 1024-65535)\n' "$CODEPLAYGROUND_PORT" >&2
@@ -23,6 +24,23 @@ if ! command -v python3 >/dev/null 2>&1; then
 	exit 127
 fi
 
+open_browser() {
+	if [[ "$CODEPLAYGROUND_OPEN_BROWSER" != '1' ]]; then
+		return 0
+	fi
+	if [[ -n "${BROWSER:-}" ]]; then
+		"$BROWSER" "$backend_url" >/dev/null 2>&1 &
+	elif command -v xdg-open >/dev/null 2>&1; then
+		xdg-open "$backend_url" >/dev/null 2>&1 &
+	fi
+}
+
+if command -v curl >/dev/null 2>&1 && curl --silent --show-error --fail --max-time 1 "$backend_url/" >/dev/null 2>&1; then
+	printf 'Backend already running at %s\n' "$backend_url"
+	open_browser
+	exit 0
+fi
+
 backend_pid=''
 cleanup() {
 	if [[ -n "$backend_pid" ]] && kill -0 "$backend_pid" 2>/dev/null; then
@@ -35,7 +53,6 @@ trap cleanup EXIT INT TERM
 python3 "$workspace_root/backend.py" &
 backend_pid=$!
 
-backend_url="http://127.0.0.1:${CODEPLAYGROUND_PORT}"
 ready=0
 for _ in {1..50}; do
 	if command -v curl >/dev/null 2>&1; then
@@ -60,12 +77,6 @@ if (( ready == 0 )); then
 fi
 
 printf 'Backend ready at %s\n' "$backend_url"
-if [[ "$CODEPLAYGROUND_OPEN_BROWSER" == '1' ]]; then
-	if [[ -n "${BROWSER:-}" ]]; then
-		"$BROWSER" "$backend_url" >/dev/null 2>&1 &
-	elif command -v xdg-open >/dev/null 2>&1; then
-		xdg-open "$backend_url" >/dev/null 2>&1 &
-	fi
-fi
+open_browser
 
 wait "$backend_pid"
