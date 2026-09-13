@@ -4,7 +4,10 @@
         {
             "label": "CodePlayground: Start Python Backend",
             "type": "shell",
-            "command": "CODEPLAYGROUND_HOST=0.0.0.0 python3 backend.py",
+            "command": "bash",
+            "args": [
+                "${workspaceFolder}/.vscode/start-backend.sh"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
