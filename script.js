@@ -2267,9 +2267,7 @@
             async function startPythonServerOnBackend(file) {
                 const pythonFiles = {};
                 Object.entries(files).forEach(([fileId, candidate]) => {
-                    if (candidate.language === 'python' || normalizeVfsPath(fileId).toLowerCase() === 'requirements.txt') {
-                        pythonFiles[fileId] = getCurrentContent(candidate);
-                    }
+                    pythonFiles[fileId] = getCurrentContent(candidate);
                 });
                 let lastError = null;
                 for (const origin of getPythonBackendOrigins()) {

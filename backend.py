@@ -6,6 +6,8 @@ same local application and binds to all interfaces for dev-container forwarding.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -95,8 +97,7 @@ def validate_payload(payload: dict) -> tuple[str, dict[str, str], str]:
             raise ValueError("Path atau isi file tidak valid")
         if len(content.encode("utf-8")) > 2 * 1024 * 1024:
             raise ValueError(f"File terlalu besar: {file_name}")
-        if file_name.lower().endswith(".py") or file_name.lower() == "requirements.txt":
-            files[file_name] = content
+        files[file_name] = content
 
     if entry_file not in files:
         raise ValueError("File Python utama tidak ditemukan")
@@ -240,6 +241,21 @@ def build_python_command(python: Path, entry_file: str, project_dir: Path) -> li
     return [str(python), entry_file]
 
 
+def materialize_file(content: str) -> bytes:
+    if not content.startswith("data:"):
+        return content.encode("utf-8")
+    header, separator, payload = content.partition(",")
+    if not separator:
+        raise ValueError("Data URL file tidak valid")
+    try:
+        if ";base64" in header.lower():
+            return base64.b64decode(payload, validate=True)
+        from urllib.parse import unquote_to_bytes
+        return unquote_to_bytes(payload)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("Data URL file tidak valid") from error
+
+
 def wait_for_tcp_port(port: int, timeout: float = 5.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -293,13 +309,20 @@ def start_python_server(payload: dict) -> dict:
         _stop_python_server_locked()
         temp_dir = tempfile.TemporaryDirectory(prefix="codeplayground-server-")
         project_dir = Path(temp_dir.name)
-        for file_name, content in files.items():
-            destination = project_dir / Path(file_name)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(content, encoding="utf-8")
-        command = build_python_command(python, entry_file, project_dir)
-        stdout_log = (project_dir / ".server.stdout.log").open("w+", encoding="utf-8")
-        stderr_log = (project_dir / ".server.stderr.log").open("w+", encoding="utf-8")
+        try:
+            for file_name, content in files.items():
+                destination = project_dir / Path(file_name)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                materialized = materialize_file(content)
+                if len(materialized) > 2 * 1024 * 1024:
+                    raise ValueError(f"File terlalu besar: {file_name}")
+                destination.write_bytes(materialized)
+            command = build_python_command(python, entry_file, project_dir)
+            stdout_log = (project_dir / ".server.stdout.log").open("w+", encoding="utf-8")
+            stderr_log = (project_dir / ".server.stderr.log").open("w+", encoding="utf-8")
+        except Exception:
+            temp_dir.cleanup()
+            raise
         process_options: dict[str, object] = {
             "cwd": project_dir,
             "env": {**os.environ, "PYTHONIOENCODING": "utf-8"},

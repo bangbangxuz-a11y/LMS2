@@ -39,7 +39,9 @@ melalui tombol **Python**. Backend harus aktif terlebih dahulu:
 python3 backend.py
 ```
 
-Portfolio server dapat diakses melalui `http://127.0.0.1:8000`.
+Portfolio server dapat diakses melalui `http://127.0.0.1:8000`. Pada mode
+server, file project seperti `data.json`, HTML/CSS, template, dan asset upload
+ikut dikirim ke process Python.
 Setelah memperbarui aplikasi, lakukan hard refresh browser (`Ctrl+Shift+R`) agar
 file JavaScript lama tidak digunakan.
 
