@@ -48,6 +48,15 @@ file JavaScript lama tidak digunakan.
 Jika backend tidak aktif, aplikasi tetap mencoba menjalankan Python melalui
 Pyodide di browser dengan batasan WebAssembly.
 
+Workspace VS Code menjalankan backend melalui task Bash otomatis saat folder
+dibuka. Launcher menunggu health check selesai lalu mencoba membuka
+`http://127.0.0.1:8001` melalui `BROWSER` atau `xdg-open`. Untuk lingkungan
+headless, nonaktifkan pembukaan browser dengan:
+
+```bash
+CODEPLAYGROUND_OPEN_BROWSER=0 ./.vscode/start-backend.sh
+```
+
 ## Kelompok Ujian Akhir Semester (UAS)
 
 1. reyshan syah                   https://github.com/reyshansyah-arch
