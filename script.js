@@ -105,6 +105,8 @@
             const PYODIDE_VERSION = '0.26.2';
             const PYODIDE_SCRIPT_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`;
             const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+            const PYTHON_BACKEND_ORIGIN = window.CODEPLAYGROUND_BACKEND_URL ||
+                (window.location.port === '8000' ? window.location.origin : 'http://127.0.0.1:8000');
             const EXTERNAL_ASSETS = {
                 iconStyle: {
                     href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
@@ -2214,7 +2216,7 @@
                 });
                 const entryFile = getPythonFileId(file);
                 try {
-                    const response = await fetch('/api/python/run', {
+                    const response = await fetch(`${PYTHON_BACKEND_ORIGIN}/api/python/run`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ entryFile, files: pythonFiles })
