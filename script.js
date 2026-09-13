@@ -2481,6 +2481,10 @@
             }
 
             function createNewFolder() {
+                if (!window.prompt) {
+                    showToast('⚠️ Browser memblokir dialog nama folder');
+                    return;
+                }
                 const requestedName = prompt('Nama folder (contoh: components/ui):', 'components');
                 if (!requestedName) return;
                 const name = normalizeVfsPath(requestedName);
@@ -3346,7 +3350,10 @@
             layoutBtn.addEventListener('click', toggleLayout);
             themeBtn.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : 'light'));
             newFileBtn.addEventListener('click', createNewFile);
-            newFolderBtn.addEventListener('click', createNewFolder);
+            newFolderBtn?.addEventListener('click', event => {
+                event.preventDefault();
+                createNewFolder();
+            });
             renameFileBtn.addEventListener('click', renameFile);
             toggleSidebarBtn.addEventListener('click', toggleSidebar);
             mobileSidebarBtn.addEventListener('click', toggleSidebar);
