@@ -4,7 +4,7 @@
         {
             "label": "CodePlayground: Start Python Backend",
             "type": "shell",
-            "command": "python3 backend.py",
+            "command": "CODEPLAYGROUND_HOST=0.0.0.0 python3 backend.py",
             "options": {
                 "cwd": "${workspaceFolder}"
             },

@@ -16,13 +16,17 @@ Buka `http://127.0.0.1:8001`. Saat tombol **Python** ditekan, aplikasi mengirim
 file Python ke backend. Backend membuat virtual environment lokal di
 `.codeplayground-venv`, memasang isi `requirements.txt`, lalu menjalankan file
 Python utama dengan batas waktu 30 detik.
-Backend menggunakan `0.0.0.0` agar dapat diakses melalui port forwarding
-VS Code/dev container, dan hanya mengizinkan CORS dari localhost. Untuk
-origin lokal tambahan, gunakan environment variable:
+Backend manual menggunakan `127.0.0.1` agar endpoint eksekusi tidak terbuka ke
+jaringan. Task VS Code memakai `0.0.0.0` khusus untuk port forwarding dev
+container, dan hanya mengizinkan CORS dari localhost. Untuk origin lokal tambahan,
+gunakan environment variable:
 
 ```bash
 CODEPLAYGROUND_ALLOWED_ORIGINS=http://localhost:5500 python3 backend.py
 ```
+
+Jika menjalankan manual di dev container dan membutuhkan port forwarding,
+gunakan `CODEPLAYGROUND_HOST=0.0.0.0 python3 backend.py`.
 
 Jangan mengekspos backend ini ke internet: endpoint dapat menjalankan kode
 Python dan memasang package dengan `pip`.
