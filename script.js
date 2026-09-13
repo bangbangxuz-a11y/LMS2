@@ -25,10 +25,16 @@
 
             const previewIframe = $('previewIframe');
             const previewStatus = $('previewStatus');
+            const errorOverlay = $('errorOverlay');
+            const errorOverlayTitle = $('errorOverlayTitle');
+            const errorOverlayMessage = $('errorOverlayMessage');
+            const dismissErrorBtn = $('dismissErrorBtn');
+            const openErrorFileBtn = $('openErrorFileBtn');
             const runBtn = $('runBtn');
             const saveBtn = $('saveBtn');
             const downloadBtn = $('downloadBtn');
             const uploadBtn = $('uploadBtn');
+            const templatesBtn = $('templatesBtn');
             const formatBtn = $('formatBtn');
             const cdnBtn = $('cdnBtn');
             const cmdBtn = $('cmdBtn');
@@ -42,12 +48,14 @@
             const sidebar = $('sidebar');
             const fileList = $('fileList');
             const newFileBtn = $('newFileBtn');
-            const newFolderBtn = $('newFolderBtn');
             const renameFileBtn = $('renameFileBtn');
             const toggleSidebarBtn = $('toggleSidebarBtn');
             const editorTabsBar = $('editorTabsBar');
             const consolePanel = $('consolePanel');
             const consoleBody = $('consoleBody');
+            const consoleFilter = $('consoleFilter');
+            const copyConsoleBtn = $('copyConsoleBtn');
+            const downloadConsoleBtn = $('downloadConsoleBtn');
             const clearConsoleBtn = $('clearConsoleBtn');
             const toggleConsoleBtn = $('toggleConsoleBtn');
             const cdnModal = $('cdnModal');
@@ -57,6 +65,9 @@
             const closeCdnModal = $('closeCdnModal');
             const settingsModal = $('settingsModal');
             const closeSettingsModal = $('closeSettingsModal');
+            const templatesModal = $('templatesModal');
+            const templateGrid = $('templateGrid');
+            const closeTemplatesModal = $('closeTemplatesModal');
             const cmdPalette = $('cmdPalette');
             const cmdInput = $('cmdInput');
             const cmdList = $('cmdList');
@@ -75,6 +86,9 @@
             //  STATE
             // ============================================================
             const STORAGE_KEY = 'codeplayground_pro_data';
+            const IDB_NAME = 'codeplayground_pro_storage';
+            const IDB_STORE = 'projects';
+            const IDB_PROJECT_KEY = 'current-project';
             const STORAGE_VERSION = 4;
             const MAX_FILE_COUNT = 100;
             const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -124,6 +138,9 @@
             let theme = 'light';
             let cdnUrls = [];
             let consoleEntries = [];
+            let consoleFilterValue = '';
+            let expandedFolders = new Set();
+            let lastPreviewError = null;
             let consoleOpen = false;
             let splitInstance = null;
             let splitLoadPromise = null;
@@ -131,6 +148,8 @@
             let toastTimer = null;
             let updateTimer = null;
             let persistenceInterval = null;
+            let indexedDbPromise = null;
+            let persistenceBackend = 'localStorage';
             let previewStatusTimer = null;
             let consoleScrollFrame = 0;
             let previewSessionToken = '';
@@ -195,11 +214,9 @@
                     }
                     for (const id of Object.keys(data.files)) {
                         const f = data.files[id];
-                        const isFolderEntry = !!f && (f.type === 'folder' || f.language === 'folder');
-                        if (!f || typeof f !== 'object' || typeof f.content !== 'string' ||
+                        if (!validateFileName(id) || !f || typeof f !== 'object' || typeof f.content !== 'string' ||
                             f.content.length > MAX_FILE_SIZE ||
-                            (isFolderEntry ? !validateFolderName(id) : 
-                                (!validateFileName(id) || (f.type === 'asset' ? typeof f.mime !== 'string' : !['html', 'css', 'javascript', 'python'].includes(f.language))))) {
+                            (f.type === 'asset' ? typeof f.mime !== 'string' : !['html', 'css', 'javascript', 'python'].includes(f.language))) {
                             console.warn('Invalid file entry, removing:', id);
                             delete data.files[id];
                         }
@@ -263,6 +280,7 @@
                         return true;
                     }
                     localStorage.setItem(STORAGE_KEY, serialized);
+                    persistToIndexedDB(payload).catch(() => {});
                     lastPersistedPayload = serialized;
                     persistenceDirty = false;
                     return true;
@@ -274,15 +292,42 @@
                 }
             }
 
+            function openProjectDatabase() {
+                if (indexedDbPromise) return indexedDbPromise;
+                if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB tidak tersedia'));
+                indexedDbPromise = new Promise((resolve, reject) => {
+                    const request = indexedDB.open(IDB_NAME, 1);
+                    request.onupgradeneeded = () => request.result.createObjectStore(IDB_STORE);
+                    request.onsuccess = () => { persistenceBackend = 'IndexedDB'; resolve(request.result); };
+                    request.onerror = () => reject(request.error || new Error('IndexedDB gagal dibuka'));
+                });
+                return indexedDbPromise;
+            }
+
+            function persistToIndexedDB(payload) {
+                return openProjectDatabase().then(db => new Promise((resolve, reject) => {
+                    const transaction = db.transaction(IDB_STORE, 'readwrite');
+                    transaction.objectStore(IDB_STORE).put(payload, IDB_PROJECT_KEY);
+                    transaction.oncomplete = resolve;
+                    transaction.onerror = () => reject(transaction.error);
+                }));
+            }
+
+            function loadFromIndexedDB() {
+                return openProjectDatabase().then(db => new Promise((resolve, reject) => {
+                    const request = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_PROJECT_KEY);
+                    request.onsuccess = () => resolve(request.result || null);
+                    request.onerror = () => reject(request.error);
+                })).catch(() => null);
+            }
+
             function getCurrentContent(file) {
                 if (previewContents && file && previewContents.has(file)) return previewContents.get(file);
                 return file && file.model ? file.model.getValue() : (file ? file.content : '');
             }
 
             function getFileType(file) {
-                if (!file) return 'code';
-                if (file.type === 'folder' || file.language === 'folder') return 'folder';
-                return file.type === 'asset' || file.language === 'asset' ? 'asset' : 'code';
+                return file && (file.type === 'asset' || file.language === 'asset') ? 'asset' : 'code';
             }
 
             function isFileDirty(file) {
@@ -493,17 +538,6 @@
                 return normalizeFileName(pathname).replace(/^\/+/, '');
             }
 
-            function isFolder(file) {
-                return !!file && file.type === 'folder';
-            }
-
-            function validateFolderName(name) {
-                const normalized = normalizeVfsPath(name).replace(/\/+$/, '');
-                if (!normalized || normalized.length > 128 || normalized.startsWith('/') || normalized.endsWith('/')) return false;
-                if (normalized.split('/').some(part => !part || part === '.' || part === '..')) return false;
-                return /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/i.test(normalized);
-            }
-
             function getFileDirectory(fileId) {
                 const slash = normalizeVfsPath(fileId).lastIndexOf('/');
                 return slash === -1 ? '' : normalizeVfsPath(fileId).slice(0, slash + 1);
@@ -539,11 +573,6 @@
 
             function isCodeFile(file) {
                 return getFileType(file) === 'code';
-            }
-
-            function isFolderEntryLike(fileId) {
-                const file = files[fileId];
-                return !!file && (file.type === 'folder' || file.language === 'folder');
             }
 
             function getAssetDataUrl(file) {
@@ -1625,6 +1654,7 @@
             }
 
             function buildPreviewFromSavedContent() {
+                hidePreviewError();
                 revokeNativeModuleUrls();
                 moduleBundleLimitNotified = false;
                 const project = getPreviewProject();
@@ -1673,7 +1703,7 @@
                         console[m]=function(...args){ orig.apply(console,args); send(m,args); };
                     });
                     window.onerror=function(msg,src,line,col,err){
-                        window.parent.postMessage({type:'console',token:'${previewSessionToken}',generation:${currentPreviewGeneration},level:'error',message:'Uncaught: '+msg+' (at '+src+':'+line+')'},'*');
+                        window.parent.postMessage({type:'console',token:'${previewSessionToken}',generation:${currentPreviewGeneration},level:'error',message:'Uncaught: '+msg,file:src,line:line,column:col},'*');
                         return false;
                     };
                     window.addEventListener('unhandledrejection',e=>{
@@ -1805,6 +1835,19 @@
                 }
             }
 
+            function showPreviewError(message, file, line, column) {
+                lastPreviewError = { file, line, column };
+                errorOverlayTitle.textContent = file ? `Error di ${file}` : 'Preview error';
+                errorOverlayMessage.textContent = `${message}${line ? `\n\nBaris ${line}, kolom ${column || 1}` : ''}`;
+                errorOverlay.classList.add('open');
+                errorOverlay.setAttribute('aria-hidden', 'false');
+            }
+
+            function hidePreviewError() {
+                errorOverlay.classList.remove('open');
+                errorOverlay.setAttribute('aria-hidden', 'true');
+            }
+
             function scheduleUpdate() {
                 if (!settings.autoSave) return;
                 if (updateTimer) clearTimeout(updateTimer);
@@ -1815,17 +1858,17 @@
             // ============================================================
             //  CONSOLE — dengan origin validation yang baik
             // ============================================================
-            function addConsoleEntry(level, message) {
-                consoleEntries.push({ level, message });
+            function addConsoleEntry(level, message, details = {}) {
+                consoleEntries.push({ level, message, ...details, timestamp: new Date().toLocaleTimeString() });
                 while (consoleEntries.length > 300) {
                     consoleEntries.shift();
                 }
-                appendConsoleEntry(level, message);
+                appendConsoleEntry(level, message, details);
                 const rows = consoleBody.querySelectorAll('.log-entry');
                 if (rows.length > 300) rows[0].remove();
             }
 
-            function appendConsoleEntry(level, message) {
+            function appendConsoleEntry(level, message, details = {}) {
                 consoleBody.querySelector('.log-empty')?.remove();
                 const div = document.createElement('div');
                 div.className = 'log-entry';
@@ -1837,7 +1880,7 @@
                 lvl.textContent = level.toUpperCase();
                 const msg = document.createElement('span');
                 msg.className = 'log-message';
-                msg.textContent = message;
+                msg.textContent = `${details.file || ''}${details.line ? `:${details.line}:${details.column || 1}` : ''}${details.file ? ' - ' : ''}${message}`;
                 div.appendChild(lvl);
                 div.appendChild(msg);
                 consoleBody.appendChild(div);
@@ -1855,7 +1898,7 @@
                     consoleBody.innerHTML = '<div class="log-empty">⟡ Konsol siap</div>';
                     return;
                 }
-                consoleEntries.forEach(e => {
+                consoleEntries.filter(e => !consoleFilterValue || `${e.level} ${e.message}`.toLowerCase().includes(consoleFilterValue)).forEach(e => {
                     const div = document.createElement('div');
                     div.className = 'log-entry';
                     const lvl = document.createElement('span');
@@ -1866,7 +1909,7 @@
                     lvl.textContent = e.level.toUpperCase();
                     const msg = document.createElement('span');
                     msg.className = 'log-message';
-                    msg.textContent = e.message;
+                    msg.textContent = `${e.file || ''}${e.line ? `:${e.line}:${e.column || 1}` : ''}${e.file ? ' - ' : ''}${e.message}`;
                     div.appendChild(lvl);
                     div.appendChild(msg);
                     consoleBody.appendChild(div);
@@ -2161,7 +2204,8 @@
                 }
                 if (data.type !== 'console' || !['log', 'error', 'warn', 'info'].includes(data.level) ||
                     typeof data.message !== 'string') return;
-                addConsoleEntry(data.level, data.message);
+                addConsoleEntry(data.level, data.message, { file: data.file, line: data.line, column: data.column });
+                if (data.level === 'error') showPreviewError(data.message, data.file, data.line, data.column);
             });
 
             // ============================================================
@@ -2169,33 +2213,49 @@
             // ============================================================
             function renderFileList() {
                 fileList.innerHTML = '';
-                const order = Object.keys(files).sort((a, b) => {
-                    const ia = fileOrder.indexOf(a),
-                        ib = fileOrder.indexOf(b);
-                    if (ia !== -1 && ib !== -1) return ia - ib;
-                    if (ia !== -1) return -1;
-                    if (ib !== -1) return 1;
-                    return a.localeCompare(b);
+                const nodes = {};
+                Object.keys(files).forEach(id => {
+                    const parts = normalizeVfsPath(id).split('/');
+                    let path = '';
+                    parts.slice(0, -1).forEach(folder => {
+                        path = path ? `${path}/${folder}` : folder;
+                        nodes[path] ||= { type: 'folder', path, name: folder, parent: path.slice(0, path.lastIndexOf('/')), children: [] };
+                    });
+                    nodes[id] = { type: 'file', path: id, name: parts.at(-1), parent: parts.slice(0, -1).join('/') };
                 });
-                order.forEach(id => {
+                const sortNodes = list => list.sort((a, b) => a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name));
+                Object.values(nodes).forEach(node => {
+                    if (node.parent && nodes[node.parent]) nodes[node.parent].children.push(node);
+                });
+                const roots = sortNodes(Object.values(nodes).filter(node => !node.parent || !nodes[node.parent]));
+                roots.filter(node => node.type === 'folder').forEach(node => expandedFolders.add(node.path));
+                const renderNodes = (items, parent, depth = 0) => items.forEach(node => {
+                    if (node.type === 'folder') {
+                        const folder = document.createElement('div');
+                        folder.className = 'file-item folder-item';
+                        folder.style.paddingLeft = `${10 + depth * 14}px`;
+                        folder.tabIndex = 0;
+                        folder.setAttribute('role', 'button');
+                        folder.setAttribute('aria-expanded', String(expandedFolders.has(node.path)));
+                        folder.innerHTML = `<span class="file-icon"><i class="fas ${expandedFolders.has(node.path) ? 'fa-folder-open' : 'fa-folder'}"></i></span><span class="file-name">${node.name}</span>`;
+                        folder.onclick = () => { expandedFolders.has(node.path) ? expandedFolders.delete(node.path) : expandedFolders.add(node.path); renderFileList(); };
+                        parent.appendChild(folder);
+                        if (expandedFolders.has(node.path)) renderNodes(sortNodes(node.children), parent, depth + 1);
+                        return;
+                    }
+                    const id = node.path;
                     const f = files[id];
-                    const isFolderEntry = isFolder(f);
-                    const displayName = id.split('/').filter(Boolean).pop() || id;
-                    const depth = normalizeVfsPath(id).split('/').filter(Boolean).length - 1;
                     const div = document.createElement('div');
-                    div.className = 'file-item' + (id === selectedFileId ? ' active' : '') + (isFolderEntry ? ' folder-item' : '');
+                    div.className = 'file-item' + (id === selectedFileId ? ' active' : '');
+                    div.style.paddingLeft = `${10 + depth * 14}px`;
                     div.dataset.fileId = id;
                     div.tabIndex = 0;
-                    div.style.paddingLeft = `${10 + depth * 14}px`;
                     div.setAttribute('role', 'button');
-                    div.setAttribute('aria-label', id + (isFolderEntry ? ', folder' : (f.dirty ? ', perubahan belum disimpan' : '')));
+                    div.setAttribute('aria-label', id + (f.dirty ? ', perubahan belum disimpan' : ''));
                     const icon = document.createElement('span');
                     icon.className = 'file-icon';
-                    if (isFolderEntry) {
-                        icon.innerHTML = '<i class="fas fa-folder" style="color:#f59e0b;"></i>';
-                    } else if (getFileType(f) === 'asset') {
-                        icon.innerHTML = '<i class="fas fa-file-image" style="color:#64748b;"></i>';
-                    } else if (f.language === 'html') icon.innerHTML = '<i class="fab fa-html5" style="color:#e34f26;"></i>';
+                    if (getFileType(f) === 'asset') icon.innerHTML = '<i class="fas fa-file-image" style="color:#64748b;"></i>';
+                    else if (f.language === 'html') icon.innerHTML = '<i class="fab fa-html5" style="color:#e34f26;"></i>';
                     else if (f.language === 'css') icon.innerHTML = '<i class="fab fa-css3-alt" style="color:#2965f1;"></i>';
                     else if (f.language === 'javascript') icon.innerHTML =
                         '<i class="fab fa-js" style="color:#f7df1e;"></i>';
@@ -2204,43 +2264,30 @@
                     else icon.innerHTML = '<i class="fas fa-file"></i>';
                     const name = document.createElement('span');
                     name.className = 'file-name';
-                    name.textContent = displayName + (!isFolderEntry && f.dirty ? ' ●' : '');
-                    name.title = id;
+                    name.textContent = id + (f.dirty ? ' ●' : '');
                     const actions = document.createElement('span');
                     actions.className = 'file-actions';
                     const del = document.createElement('button');
                     del.className = 'delete-btn';
                     del.innerHTML = '<i class="fas fa-times"></i>';
-                    del.title = isFolderEntry ? 'Hapus folder' : 'Hapus file';
-                    del.setAttribute('aria-label', (isFolderEntry ? 'Hapus folder ' : 'Hapus ') + id);
+                    del.title = 'Hapus file';
+                    del.setAttribute('aria-label', 'Hapus ' + id);
                     del.onclick = (e) => { e.stopPropagation();
-                        if (isFolderEntry) deleteFolder(id);
-                        else deleteFile(id); };
+                        deleteFile(id); };
                     actions.appendChild(del);
                     div.appendChild(icon);
                     div.appendChild(name);
                     div.appendChild(actions);
-                    div.onclick = () => {
-                        if (isFolderEntry) {
-                            selectedFileId = id;
-                            renderFileList();
-                            return;
-                        }
-                        switchFile(id);
-                    };
+                    div.onclick = () => switchFile(id);
                     div.onkeydown = event => {
                         if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            if (isFolderEntry) {
-                                selectedFileId = id;
-                                renderFileList();
-                            } else {
-                                switchFile(id);
-                            }
+                            switchFile(id);
                         }
                     };
                     fileList.appendChild(div);
                 });
+                renderNodes(roots, fileList);
             }
 
             function renderTabs() {
@@ -2383,54 +2430,12 @@
             // ============================================================
             //  FILE OPERATIONS
             // ============================================================
-            function ensureParentFolderForPath(filePath) {
-                const normalizedPath = normalizeVfsPath(filePath);
-                const parentPath = normalizedPath.includes('/') ? normalizedPath.slice(0, normalizedPath.lastIndexOf('/')) : '';
-                if (!parentPath) return true;
-                const segments = parentPath.split('/').filter(Boolean);
-                let current = '';
-                for (const segment of segments) {
-                    current = current ? `${current}/${segment}` : segment;
-                    if (!files[current]) {
-                        files[current] = {
-                            content: '',
-                            committedContent: '',
-                            language: 'folder',
-                            type: 'folder',
-                            dirty: false,
-                            model: null,
-                            modelListeners: null
-                        };
-                    }
-                }
-                return true;
-            }
-
             function createNewFile() {
-                const selectedFolderId = selectedFileId && isFolder(files[selectedFileId]) ? selectedFileId : '';
-                const selectedFolderPath = selectedFolderId ? normalizeVfsPath(selectedFolderId) : '';
-                const defaultName = selectedFolderPath ? `${selectedFolderPath}/index.html` : 'index.html';
-                const requestedName = prompt('Nama file (contoh: index.html):', defaultName);
+                const requestedName = prompt('Nama file (contoh: about.html, utils.py):', 'newfile.py');
                 if (!requestedName) return;
-
-                let candidateName = normalizeFileName(requestedName);
-                if (selectedFolderPath && !candidateName.includes('/')) {
-                    candidateName = `${selectedFolderPath}/${candidateName}`;
-                }
-
-                const name = normalizeFileName(candidateName);
+                const name = normalizeFileName(requestedName);
                 if (!validateFileName(name)) { showToast('⚠️ Nama file tidak valid'); return; }
                 if (files[name]) { showToast('⚠️ File sudah ada'); return; }
-
-                const parentPath = name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : '';
-                if (parentPath && !Object.keys(files).some(fileId => fileId === parentPath || (isFolder(files[fileId]) && normalizeVfsPath(fileId) === parentPath))) {
-                    const created = ensureParentFolderForPath(name);
-                    if (!created) {
-                        showToast('⚠️ Folder induk tidak valid');
-                        return;
-                    }
-                }
-
                 let lang = 'javascript';
                 const ext = name.split('.').pop().toLowerCase();
                 if (ext === 'html') lang = 'html';
@@ -2451,92 +2456,66 @@
                 openFileIds.push(name);
                 attachModelListener(model, name);
                 activeFileId = name;
-                selectedFileId = name;
                 renderFileList();
                 renderTabs();
                 switchFile(name);
                 showToast('✅ File dibuat: ' + name);
             }
 
-            function createNewFolder() {
-                const selectedFolderId = selectedFileId && isFolder(files[selectedFileId]) ? selectedFileId : '';
-                const selectedFolderPath = selectedFolderId ? normalizeVfsPath(selectedFolderId) : '';
-                const defaultName = selectedFolderPath ? 'subfolder' : 'assets';
-                const requestedName = prompt('Nama folder:', defaultName);
-                if (!requestedName) return;
+            const PROJECT_TEMPLATES = [
+                { id: 'starter', title: 'HTML Starter', description: 'Halaman HTML sederhana dengan CSS dan JavaScript.', files: {
+                    'index.html': '<main class="page"><h1>Project baru</h1><p>Mulai membangun sesuatu yang hebat.</p></main>\n<link rel="stylesheet" href="styles/style.css">\n<script src="scripts/app.js"><\\/script>',
+                    'styles/style.css': 'body { font-family: system-ui, sans-serif; margin: 0; padding: 3rem; color: #1e293b; }\n.page { max-width: 42rem; margin: auto; }',
+                    'scripts/app.js': 'console.log("Project siap digunakan");'
+                }},
+                { id: 'landing', title: 'Landing Page', description: 'Struktur landing page responsif dengan section hero dan CTA.', files: {
+                    'index.html': '<main><section class="hero"><p class="eyebrow">CodePlayground</p><h1>Build something useful.</h1><p>Landing page responsif yang siap dikembangkan.</p><button id="cta">Mulai</button></section></main>\n<link rel="stylesheet" href="styles/style.css">\n<script src="scripts/app.js"><\\/script>',
+                    'styles/style.css': 'body { margin: 0; font-family: system-ui, sans-serif; background: #f8fafc; color: #172033; }\n.hero { min-height: 100vh; display: grid; place-content: center; gap: 1rem; padding: 2rem; }\nbutton { padding: .75rem 1rem; cursor: pointer; }',
+                    'scripts/app.js': 'document.querySelector("#cta")?.addEventListener("click", () => alert("Halo!"));'
+                }},
+                { id: 'python', title: 'Python Starter', description: 'File Python dasar untuk eksperimen Pyodide.', files: {
+                    'index.html': '<main><h1>Python Playground</h1><p>Buka main.py lalu jalankan Python.</p></main>',
+                    'main.py': 'message = "Python siap digunakan"\nprint(message)'
+                }}
+            ];
 
-                let candidateName = normalizeVfsPath(requestedName).replace(/\/+$/, '');
-                if (selectedFolderPath && !candidateName.includes('/')) {
-                    candidateName = `${selectedFolderPath}/${candidateName}`;
-                }
-
-                const name = candidateName;
-                if (!validateFolderName(name)) { showToast('⚠️ Nama folder tidak valid'); return; }
-                const hasConflict = Object.keys(files).some(fileId => fileId === name || fileId.startsWith(name + '/'));
-                if (hasConflict) { showToast('⚠️ Folder sudah ada atau berisi item'); return; }
-
-                const newFolder = { content: '', committedContent: '', language: 'folder', type: 'folder', dirty: false, model: null };
-                const nextFiles = { ...files, [name]: newFolder };
-                if (!saveData(nextFiles, activeFileId, false, openFileIds)) return;
-
-                files[name] = newFolder;
-                selectedFileId = name;
-                renderFileList();
-                showToast('✅ Folder dibuat: ' + name);
+            function renderTemplateGrid() {
+                templateGrid.innerHTML = '';
+                PROJECT_TEMPLATES.forEach(template => {
+                    const card = document.createElement('article');
+                    card.className = 'template-card';
+                    card.innerHTML = `<h3>${template.title}</h3><p>${template.description}</p>`;
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'btn btn-primary';
+                    button.textContent = 'Gunakan template';
+                    button.onclick = () => applyTemplate(template);
+                    card.appendChild(button);
+                    templateGrid.appendChild(card);
+                });
             }
 
-            function deleteFolder(id) {
-                const folderPath = normalizeVfsPath(id);
-                const children = Object.keys(files).filter(fileId => fileId !== id && fileId.startsWith(folderPath + '/'));
-                if (children.length && !confirm(`Hapus folder "${id}" dan ${children.length} item di dalamnya?`)) return;
-                if (!files[id]) return;
-                const nextFiles = { ...files };
-                Object.keys(nextFiles).forEach(fileId => {
-                    if (fileId === id || fileId.startsWith(folderPath + '/')) delete nextFiles[fileId];
+            function applyTemplate(template) {
+                if (hasDirtyFiles() && !confirm('Perubahan saat ini akan diganti. Lanjutkan?')) return;
+                Object.values(files).forEach(file => {
+                    file.modelListeners?.dispose();
+                    file.model?.dispose();
                 });
-                const nextOpenFileIds = openFileIds.filter(fileId => nextFiles[fileId] && isCodeFile(nextFiles[fileId]));
-                const nextActiveFileId = activeFileId === id || (activeFileId && activeFileId.startsWith(folderPath + '/')) ?
-                    (nextOpenFileIds[0] || Object.keys(nextFiles).find(fileId => isCodeFile(nextFiles[fileId])) || '') : activeFileId;
-                if (!saveData(nextFiles, nextActiveFileId, false, nextOpenFileIds)) return;
-
-                delete files[id];
-                Object.keys(files).forEach(fileId => {
-                    if (fileId.startsWith(folderPath + '/')) delete files[fileId];
+                files = {};
+                Object.entries(template.files).forEach(([id, content]) => {
+                    const language = getLanguageFromFileName(id);
+                    const model = monaco.editor.createModel(content, language);
+                    files[id] = { content, committedContent: content, language, type: 'code', mime: '', dirty: false, model, modelListeners: null };
+                    attachModelListener(model, id);
                 });
-                openFileIds = nextOpenFileIds;
-                if (activeFileId === id || (activeFileId && activeFileId.startsWith(folderPath + '/'))) activeFileId = nextActiveFileId;
-                if (selectedFileId === id || (selectedFileId && selectedFileId.startsWith(folderPath + '/'))) selectedFileId = nextActiveFileId;
-                renderFileList();
-                renderTabs();
-                if (activeFileId) switchFile(activeFileId);
-                else {
-                    ['html', 'css', 'js', 'python'].forEach(key => editors[key]?.setModel(null));
-                    document.querySelectorAll('.editor-slot').forEach(slot => slot.classList.remove('active'));
-                }
-                showToast('🗂️ Folder dihapus: ' + id);
-            }
-
-            function ensureFolderExistsForFilePath(filePath) {
-                const normalizedPath = normalizeVfsPath(filePath);
-                const parentPath = normalizedPath.includes('/') ? normalizedPath.slice(0, normalizedPath.lastIndexOf('/')) : '';
-                if (!parentPath) return true;
-                const segments = parentPath.split('/').filter(Boolean);
-                let currentPath = '';
-                for (const segment of segments) {
-                    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-                    if (!files[currentPath]) {
-                        files[currentPath] = {
-                            content: '',
-                            committedContent: '',
-                            language: 'folder',
-                            type: 'folder',
-                            dirty: false,
-                            model: null,
-                            modelListeners: null
-                        };
-                    }
-                }
-                return true;
+                openFileIds = Object.keys(files);
+                activeFileId = openFileIds[0];
+                selectedFileId = activeFileId;
+                closeModal(templatesModal);
+                switchFile(activeFileId);
+                saveData();
+                buildPreview();
+                showToast(`Template ${template.title} diterapkan`);
             }
 
             function deleteFile(id) {
@@ -2724,21 +2703,8 @@
             //  SILENT AUTO-SAVE — perbaikan
             // ============================================================
             function persistDrafts() {
-                if (!settings.autoSave || !editors.html || !persistenceDirty) return;
-                syncAllFileState();
-                const saved = saveData(files, activeFileId, true, openFileIds, false);
-                if (saved) {
-                    Object.keys(files).forEach(id => {
-                        const file = files[id];
-                        if (!file) return;
-                        const current = getCurrentContent(file);
-                        file.content = current;
-                        file.committedContent = current;
-                        file.dirty = false;
-                    });
-                    persistenceDirty = false;
-                    persistenceFlushed = true;
-                }
+                if (!settings.autoSave || !editors.html || document.hidden || !persistenceDirty) return;
+                saveData(files, activeFileId, false, openFileIds, false);
             }
 
             // ============================================================
@@ -3021,7 +2987,6 @@
                 { id: 'save', label: 'Simpan semua', icon: 'fa-save', shortcut: 'Ctrl+S', action: () => saveAll(true) },
                 { id: 'format', label: 'Format kode (Monaco)', icon: 'fa-magic', shortcut: '', action: formatCode },
                 { id: 'newfile', label: 'Buat file baru', icon: 'fa-plus', shortcut: '', action: createNewFile },
-                { id: 'newfolder', label: 'Buat folder baru', icon: 'fa-folder-plus', shortcut: '', action: createNewFolder },
                 { id: 'rename', label: 'Ubah nama file', icon: 'fa-pen', shortcut: '', action: renameFile },
                 { id: 'toggleconsole', label: 'Toggle konsol', icon: 'fa-terminal', shortcut: '', action: toggleConsole },
                 { id: 'togglelayout', label: 'Rotasi layout', icon: 'fa-arrows-alt-h', shortcut: '', action: toggleLayout },
@@ -3164,8 +3129,8 @@
             // ============================================================
             //  INIT VFS
             // ============================================================
-            function initVFS() {
-                const saved = loadData();
+            function initVFS(savedData = loadData()) {
+                const saved = savedData;
                 if (saved && saved.files && Object.keys(saved.files).length > 0) {
                     files = {};
                     Object.keys(saved.files).forEach(id => {
@@ -3314,19 +3279,7 @@
             function flushPersistence() {
                 if (!settings.autoSave || persistenceFlushed || !editors.html) return;
                 syncAllFileState();
-                const saved = saveData(files, activeFileId, true, openFileIds, false);
-                if (saved) {
-                    Object.keys(files).forEach(id => {
-                        const file = files[id];
-                        if (!file) return;
-                        const current = getCurrentContent(file);
-                        file.content = current;
-                        file.committedContent = current;
-                        file.dirty = false;
-                    });
-                    persistenceDirty = false;
-                    persistenceFlushed = true;
-                }
+                persistenceFlushed = saveData(files, activeFileId, false, openFileIds, false);
             }
             window.addEventListener('beforeunload', flushPersistence);
             window.addEventListener('pagehide', () => {
@@ -3357,12 +3310,33 @@
             layoutBtn.addEventListener('click', toggleLayout);
             themeBtn.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : 'light'));
             newFileBtn.addEventListener('click', createNewFile);
-            newFolderBtn.addEventListener('click', createNewFolder);
             renameFileBtn.addEventListener('click', renameFile);
             toggleSidebarBtn.addEventListener('click', toggleSidebar);
             mobileSidebarBtn.addEventListener('click', toggleSidebar);
             clearConsoleBtn.addEventListener('click', clearConsole);
             toggleConsoleBtn.addEventListener('click', toggleConsole);
+            templatesBtn.addEventListener('click', () => openModal(templatesModal, closeTemplatesModal));
+            closeTemplatesModal.addEventListener('click', () => closeModal(templatesModal));
+            templatesModal.addEventListener('click', e => { if (e.target === templatesModal) closeModal(templatesModal); });
+            dismissErrorBtn.addEventListener('click', hidePreviewError);
+            openErrorFileBtn.addEventListener('click', () => {
+                if (lastPreviewError?.file && files[lastPreviewError.file]) switchFile(lastPreviewError.file);
+                hidePreviewError();
+            });
+            consoleFilter.addEventListener('input', () => {
+                consoleFilterValue = consoleFilter.value.trim().toLowerCase();
+                renderConsole();
+            });
+            copyConsoleBtn.addEventListener('click', async () => {
+                await navigator.clipboard?.writeText(consoleEntries.map(e => `[${e.level}] ${e.message}`).join('\n'));
+                showToast('Console disalin');
+            });
+            downloadConsoleBtn.addEventListener('click', () => {
+                const blob = new Blob([consoleEntries.map(e => `[${e.timestamp}] [${e.level}] ${e.message}`).join('\n')], { type: 'text/plain' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob); link.download = 'browser-console.txt'; link.click();
+                setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            });
 
             // CDN Modal
             closeCdnModal.addEventListener('click', () => closeModal(cdnModal));
@@ -3401,7 +3375,7 @@
                     saveAll(true); }
                 if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') { e.preventDefault();
                     openCmdPalette(); }
-                const activeModal = [cdnModal, settingsModal].find(modal => modal.classList.contains('open'));
+                const activeModal = [cdnModal, settingsModal, templatesModal].find(modal => modal.classList.contains('open'));
                 if (activeModal && e.key === 'Tab') {
                     const focusable = activeModal.querySelectorAll('button, input, select, [tabindex]:not([tabindex="-1"])');
                     if (focusable.length === 0) return;
@@ -3420,6 +3394,7 @@
                     cmdPalette.setAttribute('aria-hidden', 'true');
                     if (cdnModal.classList.contains('open')) closeModal(cdnModal);
                     if (settingsModal.classList.contains('open')) closeModal(settingsModal);
+                    if (templatesModal.classList.contains('open')) closeModal(templatesModal);
                 }
             });
 
@@ -3434,6 +3409,8 @@
                 if (window.ResizeObserver) new ResizeObserver(updateHeaderHeight).observe(document.querySelector('.header'));
                 loadSettings();
                 loadCdn();
+                renderTemplateGrid();
+                const indexedProject = await loadFromIndexedDB();
                 try {
                     await initMonaco();
                 } catch (err) {
@@ -3455,7 +3432,7 @@
                     }
                 } catch (_) {}
 
-                initVFS();
+                initVFS(indexedProject || loadData());
                 scheduleIdleTask(() => saveData(), 1200);
                 applySettingsToEditors();
                 initSplit();

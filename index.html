@@ -40,6 +40,7 @@
             <button type="button" class="btn" id="saveBtn" title="Simpan (Ctrl+S)"><i class="fas fa-save" aria-hidden="true"></i><span>Save</span></button>
             <button type="button" class="btn" id="downloadBtn" title="Download Project (ZIP)"><i class="fas fa-download" aria-hidden="true"></i><span>Download</span></button>
             <button type="button" class="btn" id="uploadBtn" title="Upload file"><i class="fas fa-upload" aria-hidden="true"></i><span>Upload</span></button>
+            <button type="button" class="btn" id="templatesBtn" title="Project templates"><i class="fas fa-layer-group" aria-hidden="true"></i><span>Templates</span></button>
             <button type="button" class="btn" id="cdnBtn" title="Kelola CDN"><i class="fas fa-link" aria-hidden="true"></i><span>CDN</span></button>
             <button type="button" class="btn" id="formatBtn" title="Format kode (Monaco)"><i class="fas fa-magic" aria-hidden="true"></i><span>Format</span></button>
             <button type="button" class="btn" id="cmdBtn" title="Command Palette (Ctrl+Shift+P)" aria-haspopup="dialog"><i class="fas fa-terminal" aria-hidden="true"></i><span>Cmd</span></button>
@@ -58,8 +59,7 @@
             </div>
             <div class="file-list" id="fileList" role="group" aria-label="Daftar file"></div>
             <div class="sidebar-footer">
-                <button type="button" class="btn" id="newFileBtn" aria-label="Buat file baru"><i class="fas fa-plus" aria-hidden="true"></i> File</button>
-                <button type="button" class="btn" id="newFolderBtn" aria-label="Buat folder baru"><i class="fas fa-folder-plus" aria-hidden="true"></i> Folder</button>
+                <button type="button" class="btn" id="newFileBtn"><i class="fas fa-plus" aria-hidden="true"></i> New</button>
                 <button type="button" class="btn" id="renameFileBtn" aria-label="Rename active file"><i class="fas fa-pen" aria-hidden="true"></i></button>
             </div>
         </aside>
@@ -83,11 +83,21 @@
                 </div>
                 <div class="preview-frame" id="previewFrame">
                     <iframe id="previewIframe" title="Live code preview" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-modals"></iframe>
+                    <div class="error-overlay" id="errorOverlay" role="alert" aria-live="assertive" aria-hidden="true">
+                        <div class="error-overlay-card">
+                            <div class="error-overlay-heading"><i class="fas fa-bug" aria-hidden="true"></i><strong id="errorOverlayTitle">Preview error</strong><button type="button" id="dismissErrorBtn" aria-label="Tutup error">&times;</button></div>
+                            <pre id="errorOverlayMessage"></pre>
+                            <button type="button" class="btn error-overlay-open" id="openErrorFileBtn">Buka file</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="console-panel" id="consolePanel">
                     <div class="console-header">
                         <span><i class="fas fa-terminal"></i> Konsol</span>
                         <div class="console-actions">
+                            <input type="search" id="consoleFilter" aria-label="Filter console" placeholder="Filter" />
+                            <button type="button" id="copyConsoleBtn" aria-label="Salin console"><i class="fas fa-copy" aria-hidden="true"></i></button>
+                            <button type="button" id="downloadConsoleBtn" aria-label="Download console"><i class="fas fa-download" aria-hidden="true"></i></button>
                             <button type="button" id="clearConsoleBtn" aria-label="Clear console"><i class="fas fa-eraser" aria-hidden="true"></i></button>
                             <button type="button" id="toggleConsoleBtn" aria-label="Buka konsol" aria-expanded="false" aria-controls="consoleBody"><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
                         </div>
@@ -128,10 +138,19 @@
             </div>
             <div class="settings-group">
                 <h3>🖥️ Preview</h3>
-                <div class="settings-row"><label for="autoRun">Auto Save</label><input type="checkbox" id="autoRun" checked /></div>
+                <div class="settings-row"><label for="autoRun">Auto Run</label><input type="checkbox" id="autoRun" checked /></div>
                 <div class="settings-row"><label for="refreshDelay">Refresh Delay</label><div class="range-wrap"><input type="range" id="refreshDelay" min="100" max="800" value="350" step="50" /><span id="refreshDelayValue">350ms</span></div></div>
             </div>
             <div class="modal-actions"><button type="button" class="btn-close" id="closeSettingsModal">Tutup</button></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="templatesModal" role="dialog" aria-modal="true" aria-labelledby="templatesModalTitle" aria-hidden="true">
+        <div class="modal">
+            <h2 id="templatesModalTitle"><i class="fas fa-layer-group" style="color:var(--accent);"></i> Project templates</h2>
+            <div class="sub">Mulai dengan struktur project siap pakai.</div>
+            <div class="template-grid" id="templateGrid"></div>
+            <div class="modal-actions"><button type="button" class="btn-close" id="closeTemplatesModal">Tutup</button></div>
         </div>
     </div>
 
