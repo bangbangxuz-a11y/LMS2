@@ -2213,6 +2213,16 @@
                     .some(file => /(?:from\s+http\.server\s+import|import\s+(?:socket|socketserver)|(?:HTTPServer|ThreadingHTTPServer|TCPServer|BaseHTTPRequestHandler)|serve_forever\s*\(|(?:\.listen|\.bind|start_server)\s*\()/m.test(getCurrentContent(file)));
             }
 
+            function getPythonBackendOrigins() {
+                return [...new Set([
+                    PYTHON_BACKEND_ORIGIN,
+                    window.location.port === '8001' ? window.location.origin : '',
+                    window.location.hostname ? `${window.location.protocol}//${window.location.hostname}:8001` : '',
+                    'http://127.0.0.1:8001',
+                    'http://localhost:8001'
+                ].filter(Boolean))];
+            }
+
             async function runPythonOnBackend(file) {
                 const pythonFiles = {};
                 Object.entries(files).forEach(([fileId, candidate]) => {
@@ -2221,13 +2231,7 @@
                     }
                 });
                 const entryFile = getPythonFileId(file);
-                const origins = [...new Set([
-                    PYTHON_BACKEND_ORIGIN,
-                    window.location.port === '8001' ? window.location.origin : '',
-                    window.location.hostname ? `${window.location.protocol}//${window.location.hostname}:8001` : '',
-                    'http://127.0.0.1:8001',
-                    'http://localhost:8001'
-                ].filter(Boolean))];
+                const origins = getPythonBackendOrigins();
                 let lastError = null;
                 for (const origin of origins) {
                     try {
@@ -2264,27 +2268,36 @@
                         pythonFiles[fileId] = getCurrentContent(candidate);
                     }
                 });
-                try {
-                    const response = await fetch(`${PYTHON_BACKEND_ORIGIN}/api/python/server/start`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ entryFile: getPythonFileId(file), files: pythonFiles, port: 8000 })
-                    });
-                    const payload = await response.json().catch(() => ({}));
-                    if (!response.ok) {
-                        addConsoleEntry('error', `Server Python gagal: ${payload.error || response.statusText}`);
-                        showToast('⚠️ Server Python gagal dimulai');
+                let lastError = null;
+                for (const origin of getPythonBackendOrigins()) {
+                    try {
+                        const response = await fetch(`${origin}/api/python/server/start`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ entryFile: getPythonFileId(file), files: pythonFiles, port: 8000 })
+                        });
+                        const payload = await response.json().catch(() => ({}));
+                        if (response.status === 404) continue;
+                        if (!response.ok) {
+                            addConsoleEntry('error', `Server Python gagal: ${payload.error || response.statusText}`);
+                            showToast('⚠️ Server Python gagal dimulai');
+                            return true;
+                        }
+                        const serverUrl = window.location.hostname
+                            ? `${window.location.protocol}//${window.location.hostname}:8000`
+                            : payload.url;
+                        addConsoleEntry('info', `Server Python aktif: ${serverUrl}`);
+                        previewIframe.src = serverUrl;
+                        previewStatus.textContent = 'server';
                         return true;
+                    } catch (error) {
+                        lastError = error;
                     }
-                    addConsoleEntry('info', `Server Python aktif: ${payload.url}`);
-                    previewIframe.src = payload.url;
-                    previewStatus.textContent = 'server';
-                    return true;
-                } catch (error) {
-                    addConsoleEntry('error', `Backend Python tidak aktif di ${PYTHON_BACKEND_ORIGIN}. Jalankan "python3 backend.py", buka ${PYTHON_BACKEND_ORIGIN}, lalu coba lagi.`);
-                    showToast('⚠️ Jalankan backend di port 8001');
-                    return true;
                 }
+                addConsoleEntry('error', `Backend Python tidak aktif di ${PYTHON_BACKEND_ORIGIN}. Jalankan "python3 backend.py", buka ${PYTHON_BACKEND_ORIGIN}, lalu coba lagi.`);
+                if (lastError?.name !== 'TypeError') addConsoleEntry('error', lastError?.message || 'Alamat backend tidak tersedia');
+                showToast('⚠️ Jalankan backend di port 8001');
+                return true;
             }
 
             async function runPythonCode() {
