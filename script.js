@@ -2214,12 +2214,17 @@
             }
 
             function getPythonBackendOrigins() {
+                const forwardedBackendOrigin = window.location.hostname.match(/^(.*)-(\d+)(\..+)$/);
+                const forwardedOrigin = forwardedBackendOrigin && forwardedBackendOrigin[2] === '8001'
+                    ? window.location.origin
+                    : '';
                 const browserOrigin = /^https?:$/i.test(window.location.protocol) && window.location.hostname
                     ? `${window.location.protocol}//${window.location.hostname}:8001`
                     : '';
                 return [...new Set([
                     PYTHON_BACKEND_ORIGIN,
                     window.location.port === '8001' ? window.location.origin : '',
+                    forwardedOrigin,
                     browserOrigin,
                     'http://127.0.0.1:8001',
                     'http://localhost:8001'
@@ -2284,9 +2289,12 @@
                             showToast('⚠️ Server Python gagal dimulai');
                             return true;
                         }
-                        const serverUrl = /^https?:$/i.test(window.location.protocol) && window.location.hostname
-                            ? `${window.location.protocol}//${window.location.hostname}:8000`
-                            : payload.url;
+                        const forwardedServerOrigin = window.location.hostname.match(/^(.*)-(\d+)(\..+)$/);
+                        const serverUrl = forwardedServerOrigin && forwardedServerOrigin[2] === '8001'
+                            ? `${window.location.protocol}//${forwardedServerOrigin[1]}-8000${forwardedServerOrigin[3]}`
+                            : /^https?:$/i.test(window.location.protocol) && window.location.hostname
+                                ? `${window.location.protocol}//${window.location.hostname}:8000`
+                                : payload.url;
                         addConsoleEntry('info', `Server Python aktif: ${serverUrl}`);
                         previewIframe.src = serverUrl;
                         previewStatus.textContent = 'server';
