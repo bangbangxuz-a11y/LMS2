@@ -1,0 +1,7 @@
+{
+    "task.allowAutomaticTasks": "on",
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.automationProfile.linux": {
+        "path": "/usr/bin/bash"
+    }
+}
