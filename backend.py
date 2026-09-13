@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import signal
+import socket
 import subprocess
 import tempfile
 import threading
@@ -239,6 +240,17 @@ def build_python_command(python: Path, entry_file: str, project_dir: Path) -> li
     return [str(python), entry_file]
 
 
+def wait_for_tcp_port(port: int, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                return True
+        except OSError:
+            time.sleep(0.05)
+    return False
+
+
 def _stop_python_server_locked() -> None:
     global server_process, server_temp_dir, server_log_handles
     process = server_process
@@ -286,8 +298,8 @@ def start_python_server(payload: dict) -> dict:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content, encoding="utf-8")
         command = build_python_command(python, entry_file, project_dir)
-        stdout_log = (project_dir / ".server.stdout.log").open("w", encoding="utf-8")
-        stderr_log = (project_dir / ".server.stderr.log").open("w", encoding="utf-8")
+        stdout_log = (project_dir / ".server.stdout.log").open("w+", encoding="utf-8")
+        stderr_log = (project_dir / ".server.stderr.log").open("w+", encoding="utf-8")
         process_options: dict[str, object] = {
             "cwd": project_dir,
             "env": {**os.environ, "PYTHONIOENCODING": "utf-8"},
@@ -324,6 +336,17 @@ def start_python_server(payload: dict) -> dict:
             _stop_python_server_locked()
             detail = (stderr or stdout).strip()[-4000:]
             raise RuntimeError(f"Server Python gagal dimulai: {detail}")
+        if not wait_for_tcp_port(requested_port):
+            stdout_log.flush()
+            stderr_log.flush()
+            stdout_log.seek(0)
+            stderr_log.seek(0)
+            stdout = stdout_log.read()
+            stderr = stderr_log.read()
+            _stop_python_server_locked()
+            detail = (stderr or stdout).strip()[-4000:]
+            suffix = f": {detail}" if detail else ""
+            raise RuntimeError(f"Server Python tidak membuka port {requested_port}{suffix}")
         return {"ok": True, "url": f"http://127.0.0.1:{requested_port}", "port": requested_port}
 
 
