@@ -2312,7 +2312,7 @@
                     div.dataset.fileId = id;
                     div.tabIndex = 0;
                     div.setAttribute('role', 'button');
-                    div.setAttribute('aria-label', id + (f.dirty ? ', perubahan belum disimpan' : ''));
+                    div.setAttribute('aria-label', node.name + (f.dirty ? ', perubahan belum disimpan' : ''));
                     const icon = document.createElement('span');
                     icon.className = 'file-icon';
                     if (getFileType(f) === 'asset') icon.innerHTML = '<i class="fas fa-file-image" style="color:#64748b;"></i>';
@@ -2332,7 +2332,7 @@
                     del.className = 'delete-btn';
                     del.innerHTML = '<i class="fas fa-times"></i>';
                     del.title = 'Hapus file';
-                    del.setAttribute('aria-label', 'Hapus ' + id);
+                    del.setAttribute('aria-label', 'Hapus ' + node.name);
                     del.onclick = (e) => { e.stopPropagation();
                         deleteFile(id); };
                     actions.appendChild(del);
@@ -2376,7 +2376,7 @@
                     btn.tabIndex = 0;
                     btn.setAttribute('role', 'tab');
                     btn.setAttribute('aria-selected', id === activeFileId ? 'true' : 'false');
-                    btn.setAttribute('aria-label', `${id}${f.dirty ? ', perubahan belum disimpan' : ''}`);
+                    btn.setAttribute('aria-label', `${id.split('/').pop()}${f.dirty ? ', perubahan belum disimpan' : ''}`);
                     btn.id = `editor-tab-${order.indexOf(id)}`;
                     btn.setAttribute('aria-controls', `${editorKey}EditorSlot`);
                     const label = document.createElement('span');
@@ -2387,7 +2387,7 @@
                     close.type = 'button';
                     close.className = 'close-tab';
                     close.innerHTML = '&times;';
-                    close.setAttribute('aria-label', 'Close ' + id);
+                    close.setAttribute('aria-label', 'Close ' + id.split('/').pop());
                     close.onclick = (e) => { e.stopPropagation();
                         closeFileTab(id); };
                     btn.appendChild(label);
