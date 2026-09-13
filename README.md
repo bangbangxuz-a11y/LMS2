@@ -4,7 +4,7 @@ Editor HTML, CSS, JavaScript, dan Python dengan live preview.
 
 ## Menjalankan backend Python penuh
 
-Backend lokal menjalankan Python asli, sehingga package pada `requirements.txt`
+Backend lokal pada port `8001` menjalankan Python asli, sehingga package pada `requirements.txt`
 dan library standard seperti `http.server` dapat digunakan. Jalankan dari folder
 project:
 
@@ -12,7 +12,7 @@ project:
 python3 backend.py
 ```
 
-Buka `http://127.0.0.1:8000`. Saat tombol **Python** ditekan, aplikasi mengirim
+Buka `http://127.0.0.1:8001`. Saat tombol **Python** ditekan, aplikasi mengirim
 file Python ke backend. Backend membuat virtual environment lokal di
 `.codeplayground-venv`, memasang isi `requirements.txt`, lalu menjalankan file
 Python utama dengan batas waktu 30 detik.
@@ -27,14 +27,14 @@ Jangan mengekspos backend ini ke internet: endpoint dapat menjalankan kode
 Python dan memasang package dengan `pip`.
 
 Program Python yang memakai `HTTPServer`, `socket`, `serve_forever()`, atau
-server jangka panjang harus dijalankan langsung sebagai proses terpisah, bukan
-dari tombol **Python** di browser. Contoh:
+server jangka panjang akan dijalankan sebagai proses terpisah pada port `8000`
+melalui tombol **Python**. Backend harus aktif terlebih dahulu:
 
 ```bash
-python3 indeks.py
+python3 backend.py
 ```
 
-Gunakan port selain `8000` jika `backend.py` sedang berjalan pada port tersebut.
+Portfolio server dapat diakses melalui `http://127.0.0.1:8000`.
 Setelah memperbarui aplikasi, lakukan hard refresh browser (`Ctrl+Shift+R`) agar
 file JavaScript lama tidak digunakan.
 

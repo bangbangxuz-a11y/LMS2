@@ -13,6 +13,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 import venv
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -20,7 +21,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 HOST = os.environ.get("CODEPLAYGROUND_HOST", "127.0.0.1")
-PORT = int(os.environ.get("CODEPLAYGROUND_PORT", "8000"))
+PORT = int(os.environ.get("CODEPLAYGROUND_PORT", "8001"))
 MAX_BODY_SIZE = 8 * 1024 * 1024
 RUN_TIMEOUT_SECONDS = 30
 INSTALL_TIMEOUT_SECONDS = 180
@@ -37,6 +38,10 @@ venv_lock = threading.Lock()
 requirements_lock = threading.Lock()
 venv_python: Path | None = None
 installed_requirements_hash = ""
+server_lock = threading.Lock()
+server_process: subprocess.Popen[str] | None = None
+server_temp_dir: tempfile.TemporaryDirectory[str] | None = None
+server_log_handles: tuple[object, object] | None = None
 
 
 def json_response(handler: SimpleHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -206,17 +211,7 @@ def run_python(payload: dict) -> dict:
             destination = project_dir / Path(file_name)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content, encoding="utf-8")
-        entry_parts = PurePosixPath(entry_file).parts
-        entry_module_parts = (*entry_parts[:-1], PurePosixPath(entry_parts[-1]).stem)
-        can_run_as_module = len(entry_parts) > 1 and all(part.isidentifier() for part in entry_module_parts)
-        if can_run_as_module:
-            for depth in range(1, len(entry_parts)):
-                package_init = project_dir.joinpath(*entry_parts[:depth], "__init__.py")
-                package_init.parent.mkdir(parents=True, exist_ok=True)
-                package_init.touch(exist_ok=True)
-            command = [str(python), "-m", ".".join(entry_module_parts)]
-        else:
-            command = [str(python), entry_file]
+        command = build_python_command(python, entry_file, project_dir)
         result = run_subprocess(
             command,
             cwd=project_dir,
@@ -229,6 +224,102 @@ def run_python(payload: dict) -> dict:
             "stderr": result.stderr[-MAX_OUTPUT_SIZE:],
             "exitCode": result.returncode,
         }
+
+
+def build_python_command(python: Path, entry_file: str, project_dir: Path) -> list[str]:
+    entry_parts = PurePosixPath(entry_file).parts
+    entry_module_parts = (*entry_parts[:-1], PurePosixPath(entry_parts[-1]).stem)
+    can_run_as_module = len(entry_parts) > 1 and all(part.isidentifier() for part in entry_module_parts)
+    if can_run_as_module:
+        for depth in range(1, len(entry_parts)):
+            package_init = project_dir.joinpath(*entry_parts[:depth], "__init__.py")
+            package_init.parent.mkdir(parents=True, exist_ok=True)
+            package_init.touch(exist_ok=True)
+        return [str(python), "-m", ".".join(entry_module_parts)]
+    return [str(python), entry_file]
+
+
+def stop_python_server() -> None:
+    global server_process, server_temp_dir, server_log_handles
+    with server_lock:
+        process = server_process
+        server_process = None
+        if process and process.poll() is None:
+            if os.name == "nt":
+                process.kill()
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                if os.name == "nt":
+                    process.kill()
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+        if server_log_handles:
+            for handle in server_log_handles:
+                handle.close()
+            server_log_handles = None
+        if server_temp_dir:
+            server_temp_dir.cleanup()
+            server_temp_dir = None
+
+
+def start_python_server(payload: dict) -> dict:
+    global server_process, server_temp_dir, server_log_handles
+    entry_file, files, requirements = validate_payload(payload)
+    requested_port = payload.get("port", 8000)
+    if not isinstance(requested_port, int) or not 1024 <= requested_port <= 65535:
+        raise ValueError("Port server tidak valid")
+    python = install_requirements(requirements)
+    stop_python_server()
+    temp_dir = tempfile.TemporaryDirectory(prefix="codeplayground-server-")
+    project_dir = Path(temp_dir.name)
+    for file_name, content in files.items():
+        destination = project_dir / Path(file_name)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
+    command = build_python_command(python, entry_file, project_dir)
+    stdout_log = (project_dir / ".server.stdout.log").open("w", encoding="utf-8")
+    stderr_log = (project_dir / ".server.stderr.log").open("w", encoding="utf-8")
+    process_options: dict[str, object] = {
+        "cwd": project_dir,
+        "env": {**os.environ, "PYTHONIOENCODING": "utf-8"},
+        "stdout": stdout_log,
+        "stderr": stderr_log,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+    }
+    if os.name == "nt":
+        process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        process_options["start_new_session"] = True
+    try:
+        process = subprocess.Popen(command, **process_options)
+    except OSError:
+        stdout_log.close()
+        stderr_log.close()
+        temp_dir.cleanup()
+        raise
+    server_process = process
+    server_temp_dir = temp_dir
+    server_log_handles = (stdout_log, stderr_log)
+    deadline = time.monotonic() + 0.5
+    while time.monotonic() < deadline and process.poll() is None:
+        time.sleep(0.02)
+    if process.poll() is not None:
+        stdout_log.flush()
+        stderr_log.flush()
+        stdout_log.seek(0)
+        stderr_log.seek(0)
+        stdout = stdout_log.read()
+        stderr = stderr_log.read()
+        stop_python_server()
+        detail = (stderr or stdout).strip()[-4000:]
+        raise RuntimeError(f"Server Python gagal dimulai: {detail}")
+    return {"ok": True, "url": f"http://127.0.0.1:{requested_port}", "port": requested_port}
 
 
 class CodePlaygroundHandler(SimpleHTTPRequestHandler):
@@ -251,6 +342,17 @@ class CodePlaygroundHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if path == "/api/python/server/start":
+            try:
+                result = start_python_server(read_request_body(self))
+                json_response(self, 200, result)
+            except (ValueError, RuntimeError) as error:
+                json_response(self, 400, {"ok": False, "error": str(error)})
+            return
+        if path == "/api/python/server/stop":
+            stop_python_server()
+            json_response(self, 200, {"ok": True})
+            return
         if path != "/api/python/run":
             json_response(self, 404, {"ok": False, "error": "Endpoint tidak ditemukan"})
             return
@@ -278,4 +380,5 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             print("\nServer stopped")
         finally:
+            stop_python_server()
             server.server_close()

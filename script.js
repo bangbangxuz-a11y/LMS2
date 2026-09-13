@@ -106,7 +106,7 @@
             const PYODIDE_SCRIPT_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`;
             const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
             const PYTHON_BACKEND_ORIGIN = window.CODEPLAYGROUND_BACKEND_URL ||
-                (window.location.port === '8000' ? window.location.origin : 'http://127.0.0.1:8000');
+                (window.location.port === '8001' ? window.location.origin : 'http://127.0.0.1:8001');
             const EXTERNAL_ASSETS = {
                 iconStyle: {
                     href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
@@ -2245,6 +2245,36 @@
                 }
             }
 
+            async function startPythonServerOnBackend(file) {
+                const pythonFiles = {};
+                Object.entries(files).forEach(([fileId, candidate]) => {
+                    if (candidate.language === 'python' || normalizeVfsPath(fileId).toLowerCase() === 'requirements.txt') {
+                        pythonFiles[fileId] = getCurrentContent(candidate);
+                    }
+                });
+                try {
+                    const response = await fetch(`${PYTHON_BACKEND_ORIGIN}/api/python/server/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ entryFile: getPythonFileId(file), files: pythonFiles, port: 8000 })
+                    });
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        addConsoleEntry('error', `Server Python gagal: ${payload.error || response.statusText}`);
+                        showToast('⚠️ Server Python gagal dimulai');
+                        return true;
+                    }
+                    addConsoleEntry('info', `Server Python aktif: ${payload.url}`);
+                    previewIframe.src = payload.url;
+                    previewStatus.textContent = 'server';
+                    return true;
+                } catch (error) {
+                    addConsoleEntry('error', 'Backend Python tidak aktif. Jalankan "python3 backend.py", lalu coba lagi.');
+                    showToast('⚠️ Backend Python belum aktif');
+                    return true;
+                }
+            }
+
             async function runPythonCode() {
                 if (pythonRunInProgress) return;
                 syncAllFileState();
@@ -2263,8 +2293,7 @@
                 let runtime = null;
                 try {
                     if (pythonRequiresNativeBackend()) {
-                        addConsoleEntry('error', 'Program server jangka panjang tidak dapat dijalankan dari tombol Run browser. Jalankan file ini langsung dengan "python3 indeks.py" di terminal dan gunakan port selain 8000.');
-                        showToast('⚠️ Jalankan program server dari terminal');
+                        await startPythonServerOnBackend(file);
                         return;
                     }
                     const backendCompleted = await runPythonOnBackend(file);
