@@ -64,7 +64,7 @@ def is_safe_relative_path(value: object) -> bool:
     path = PurePosixPath(normalized)
     if PureWindowsPath(normalized).drive:
         return False
-    return not path.is_absolute() and ".." not in path.parts and str(path) == normalized
+    return not path.is_absolute() and path != PurePosixPath(".") and ".." not in path.parts and str(path) == normalized
 
 
 def read_request_body(handler: SimpleHTTPRequestHandler) -> dict:
@@ -92,9 +92,14 @@ def validate_payload(payload: dict) -> tuple[str, dict[str, str], str]:
         raise ValueError("Daftar file tidak valid")
 
     files: dict[str, str] = {}
+    normalized_names: set[str] = set()
     for file_name, content in raw_files.items():
         if not is_safe_relative_path(file_name) or not isinstance(content, str):
             raise ValueError("Path atau isi file tidak valid")
+        normalized_name = file_name.replace("\\", "/").lower()
+        if normalized_name in normalized_names:
+            raise ValueError(f"Path file duplikat: {file_name}")
+        normalized_names.add(normalized_name)
         if len(content.encode("utf-8")) > 2 * 1024 * 1024:
             raise ValueError(f"File terlalu besar: {file_name}")
         files[file_name] = content
@@ -401,6 +406,8 @@ class CodePlaygroundHandler(SimpleHTTPRequestHandler):
                 json_response(self, 200, result)
             except (ValueError, RuntimeError) as error:
                 json_response(self, 400, {"ok": False, "error": str(error)})
+            except Exception as error:
+                json_response(self, 500, {"ok": False, "error": f"Backend Python gagal: {error}"})
             return
         if path == "/api/python/server/stop":
             stop_python_server()
