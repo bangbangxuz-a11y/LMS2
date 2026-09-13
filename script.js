@@ -51,6 +51,7 @@
             const newFolderBtn = $('newFolderBtn');
             const renameFileBtn = $('renameFileBtn');
             const toggleSidebarBtn = $('toggleSidebarBtn');
+            const openWorkspaceBtn = $('openWorkspaceBtn');
             const editorTabsBar = $('editorTabsBar');
             const consolePanel = $('consolePanel');
             const consoleBody = $('consoleBody');
@@ -178,6 +179,7 @@
             // --- VFS ---
             let files = {};
             let folders = new Set();
+            let workspaceDirectoryHandle = null;
             let activeFileId = 'index.html';
             let selectedFileId = 'index.html';
             let openFileIds = [];
@@ -574,6 +576,32 @@
                 const normalized = normalizeVfsPath(name);
                 return !!normalized && normalized.length <= 128 && !normalized.endsWith('/') &&
                     normalized.split('/').every(part => /^[A-Za-z0-9._-]+$/.test(part) && part !== '.' && part !== '..');
+            }
+
+            async function connectLocalWorkspace() {
+                if (typeof window.showDirectoryPicker !== 'function') {
+                    showToast('⚠️ Browser ini tidak mendukung akses folder lokal');
+                    return;
+                }
+                try {
+                    workspaceDirectoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                    openWorkspaceBtn.setAttribute('aria-label', `Folder terhubung: ${workspaceDirectoryHandle.name}`);
+                    openWorkspaceBtn.title = `Folder terhubung: ${workspaceDirectoryHandle.name}`;
+                    showToast(`✅ Folder terhubung: ${workspaceDirectoryHandle.name}`);
+                } catch (error) {
+                    if (error?.name !== 'AbortError') {
+                        console.error('Local folder access failed:', error);
+                        showToast('⚠️ Folder lokal tidak dapat dihubungkan');
+                    }
+                }
+            }
+
+            async function createLocalFolder(folderPath) {
+                if (!workspaceDirectoryHandle) return;
+                let current = workspaceDirectoryHandle;
+                for (const part of folderPath.split('/')) {
+                    current = await current.getDirectoryHandle(part, { create: true });
+                }
             }
 
             function getLanguageFromFileName(name) {
@@ -2480,7 +2508,7 @@
                 showToast('✅ File dibuat: ' + name);
             }
 
-            function createNewFolder() {
+            async function createNewFolder() {
                 if (!window.prompt) {
                     showToast('⚠️ Browser memblokir dialog nama folder');
                     return;
@@ -2494,6 +2522,15 @@
                     return;
                 }
                 const parts = name.split('/');
+                if (workspaceDirectoryHandle) {
+                    try {
+                        await createLocalFolder(name);
+                    } catch (error) {
+                        console.error('Create local folder failed:', error);
+                        showToast('⚠️ Folder fisik tidak dapat dibuat. Periksa izin folder.');
+                        return;
+                    }
+                }
                 for (let index = 1; index <= parts.length; index += 1) folders.add(parts.slice(0, index).join('/'));
                 expandedFolders.add(name);
                 saveData();
@@ -3354,6 +3391,7 @@
                 event.preventDefault();
                 createNewFolder();
             });
+            openWorkspaceBtn?.addEventListener('click', connectLocalWorkspace);
             renameFileBtn.addEventListener('click', renameFile);
             toggleSidebarBtn.addEventListener('click', toggleSidebar);
             mobileSidebarBtn.addEventListener('click', toggleSidebar);
