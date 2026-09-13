@@ -142,6 +142,7 @@
             let consoleEntries = [];
             let consoleFilterValue = '';
             let expandedFolders = new Set();
+            let folderTreeInitialized = false;
             let lastPreviewError = null;
             let consoleOpen = false;
             let splitInstance = null;
@@ -2274,7 +2275,10 @@
                     if (node.parent && nodes[node.parent]) nodes[node.parent].children.push(node);
                 });
                 const roots = sortNodes(Object.values(nodes).filter(node => !node.parent || !nodes[node.parent]));
-                roots.filter(node => node.type === 'folder').forEach(node => expandedFolders.add(node.path));
+                if (!folderTreeInitialized) {
+                    roots.filter(node => node.type === 'folder').forEach(node => expandedFolders.add(node.path));
+                    folderTreeInitialized = true;
+                }
                 const renderNodes = (items, parent, depth = 0) => items.forEach(node => {
                     if (node.type === 'folder') {
                         const folder = document.createElement('div');
@@ -2578,6 +2582,9 @@
                     file.model?.dispose();
                 });
                 files = {};
+                folders = new Set();
+                expandedFolders = new Set();
+                folderTreeInitialized = false;
                 Object.entries(template.files).forEach(([id, content]) => {
                     const language = getLanguageFromFileName(id);
                     const model = monaco.editor.createModel(content, language);
@@ -2622,6 +2629,10 @@
                     file.modelListeners.dispose();
                 }
                 delete files[id];
+                const folderPath = getFileDirectory(id).replace(/\/$/, '');
+                if (folderPath && !folders.has(folderPath) && !Object.keys(files).some(fileId => getFileDirectory(fileId).startsWith(`${folderPath}/`) || getFileDirectory(fileId).replace(/\/$/, '') === folderPath)) {
+                    expandedFolders.delete(folderPath);
+                }
                 if (previewPageId === id) previewPageId = 'index.html';
                 openFileIds = nextOpenFileIds;
                 if (activeFileId === id) activeFileId = nextActiveFileId;
