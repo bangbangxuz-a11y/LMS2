@@ -2495,11 +2495,17 @@
             //  FILE OPERATIONS
             // ============================================================
             function createNewFile() {
-                const defaultName = selectedFolderPath ? `${selectedFolderPath}/newfile.py` : 'newfile.py';
-                const requestedName = prompt('Nama file (contoh: about.html, utils.py):', defaultName);
+                const requestedName = prompt(
+                    'Nama file (contoh: pp.py):',
+                    'newfile.py'
+                );
                 if (!requestedName) return;
                 const enteredName = normalizeFileName(requestedName);
-                const name = selectedFolderPath && !enteredName.includes('/') ? `${selectedFolderPath}/${enteredName}` : enteredName;
+                if (enteredName.includes('/')) {
+                    showToast('⚠️ Masukkan nama file saja, tanpa folder/');
+                    return;
+                }
+                const name = selectedFolderPath ? `${selectedFolderPath}/${enteredName}` : enteredName;
                 if (!validateFileName(name)) { showToast('⚠️ Nama file tidak valid'); return; }
                 if (files[name]) { showToast('⚠️ File sudah ada'); return; }
                 let lang = 'javascript';
