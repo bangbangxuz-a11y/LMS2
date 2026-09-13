@@ -15,7 +15,7 @@ import tempfile
 import threading
 import venv
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
@@ -52,8 +52,11 @@ def json_response(handler: SimpleHTTPRequestHandler, status: int, payload: dict)
 def is_safe_relative_path(value: object) -> bool:
     if not isinstance(value, str) or not value or "\x00" in value:
         return False
-    path = PurePosixPath(value.replace("\\", "/"))
-    return not path.is_absolute() and ".." not in path.parts and str(path) == value.replace("\\", "/")
+    normalized = value.replace("\\", "/")
+    path = PurePosixPath(normalized)
+    if PureWindowsPath(normalized).drive:
+        return False
+    return not path.is_absolute() and ".." not in path.parts and str(path) == normalized
 
 
 def read_request_body(handler: SimpleHTTPRequestHandler) -> dict:
@@ -203,8 +206,19 @@ def run_python(payload: dict) -> dict:
             destination = project_dir / Path(file_name)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content, encoding="utf-8")
+        entry_parts = PurePosixPath(entry_file).parts
+        entry_module_parts = (*entry_parts[:-1], PurePosixPath(entry_parts[-1]).stem)
+        can_run_as_module = len(entry_parts) > 1 and all(part.isidentifier() for part in entry_module_parts)
+        if can_run_as_module:
+            for depth in range(1, len(entry_parts)):
+                package_init = project_dir.joinpath(*entry_parts[:depth], "__init__.py")
+                package_init.parent.mkdir(parents=True, exist_ok=True)
+                package_init.touch(exist_ok=True)
+            command = [str(python), "-m", ".".join(entry_module_parts)]
+        else:
+            command = [str(python), entry_file]
         result = run_subprocess(
-            [str(python), entry_file],
+            command,
             cwd=project_dir,
             timeout=RUN_TIMEOUT_SECONDS,
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},

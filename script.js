@@ -2046,7 +2046,7 @@
                     }
                 });
                 const fingerprint = JSON.stringify(pythonFiles
-                    .map(([fileId, file]) => [normalizeVfsPath(fileId), file.committedContent])
+                    .map(([fileId, file]) => [normalizeVfsPath(fileId), getCurrentContent(file)])
                     .sort((left, right) => left[0].localeCompare(right[0])));
                 const filesystemChanged = fingerprint !== pythonFilesystemFingerprint;
                 const moduleRoots = new Set([...pythonModuleRoots, ...filePaths, ...directoryPaths]
@@ -2081,7 +2081,7 @@
                     const virtualPath = `${PYTHON_PROJECT_DIR}/${normalizeVfsPath(fileId)}`;
                     const directory = virtualPath.slice(0, virtualPath.lastIndexOf('/'));
                     runtime.FS.mkdirTree(directory);
-                    runtime.FS.writeFile(virtualPath, file.committedContent);
+                    runtime.FS.writeFile(virtualPath, getCurrentContent(file));
                     currentPaths.add(normalizeVfsPath(fileId));
                 });
                 pythonFsPaths.forEach(filePath => {
@@ -2247,7 +2247,6 @@
                     showToast('⚠️ Belum ada file Python');
                     return;
                 }
-                const source = file.committedContent;
                 pythonRunInProgress = true;
                 runPythonBtn.disabled = true;
                 const originalLabel = runPythonBtn.querySelector('span')?.textContent || 'Python';
@@ -2268,7 +2267,7 @@
                             .map(id => normalizeVfsPath(id).split('/')[0].replace(/\.py$/i, '')));
                         const packageSources = Object.values(files)
                             .filter(candidate => candidate.language === 'python')
-                            .map(candidate => getPythonExternalImportSource(candidate.committedContent, localModuleNames));
+                            .map(candidate => getPythonExternalImportSource(getCurrentContent(candidate), localModuleNames));
                         for (const packageSource of packageSources) {
                             await runtime.loadPackagesFromImports(packageSource);
                         }
