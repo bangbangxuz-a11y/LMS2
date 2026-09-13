@@ -2207,6 +2207,12 @@
                 pythonRequirementsFingerprint = fingerprint;
             }
 
+            function pythonRequiresNativeBackend() {
+                return Object.values(files)
+                    .filter(file => file.language === 'python')
+                    .some(file => /(?:from\s+http\.server\s+import|import\s+socket|serve_forever\s*\(|\.listen\s*\(|\.bind\s*\()/m.test(getCurrentContent(file)));
+            }
+
             async function runPythonOnBackend(file) {
                 const pythonFiles = {};
                 Object.entries(files).forEach(([fileId, candidate]) => {
@@ -2256,7 +2262,13 @@
                 addConsoleEntry('info', `Python: ${activeFileId === Object.keys(files).find(id => files[id] === file) ? activeFileId : 'main.py'}`);
                 let runtime = null;
                 try {
-                    if (await runPythonOnBackend(file)) return;
+                    if (pythonRequiresNativeBackend()) {
+                        addConsoleEntry('error', 'Program server jangka panjang tidak dapat dijalankan dari tombol Run browser. Jalankan file ini langsung dengan "python3 indeks.py" di terminal dan gunakan port selain 8000.');
+                        showToast('⚠️ Jalankan program server dari terminal');
+                        return;
+                    }
+                    const backendCompleted = await runPythonOnBackend(file);
+                    if (backendCompleted) return;
                     runtime = await loadPyodideRuntime();
                     const pythonPreparation = await preparePythonFilesystem(runtime);
                     runtime.setStdout({ batched: text => addConsoleEntry('info', text) });

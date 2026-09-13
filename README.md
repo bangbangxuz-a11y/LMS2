@@ -26,6 +26,16 @@ CODEPLAYGROUND_ALLOWED_ORIGINS=http://localhost:5500 python3 backend.py
 Jangan mengekspos backend ini ke internet: endpoint dapat menjalankan kode
 Python dan memasang package dengan `pip`.
 
+Program Python yang memakai `HTTPServer`, `socket`, `serve_forever()`, atau
+server jangka panjang harus dijalankan langsung sebagai proses terpisah, bukan
+dari tombol **Python** di browser. Contoh:
+
+```bash
+python3 indeks.py
+```
+
+Gunakan port selain `8000` jika `backend.py` sedang berjalan pada port tersebut.
+
 Jika backend tidak aktif, aplikasi tetap mencoba menjalankan Python melalui
 Pyodide di browser dengan batasan WebAssembly.
 
