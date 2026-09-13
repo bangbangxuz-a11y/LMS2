@@ -79,7 +79,7 @@
             const wordWrapSelect = $('wordWrap');
             const lineNumbersSelect = $('lineNumbers');
             const minimapSelect = $('minimap');
-            const autoSaveCheck = $('autoSave') || $('autoRun');
+            const autoSaveCheck = $('autoSave');
             const refreshDelayRange = $('refreshDelay');
             const refreshDelayValue = $('refreshDelayValue');
             const mobileSidebarBtn = $('mobileSidebarBtn');
