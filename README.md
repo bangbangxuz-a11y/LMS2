@@ -2,6 +2,22 @@
 
 Editor HTML, CSS, JavaScript, dan Python dengan live preview.
 
+## Menjalankan tanpa VS Code
+
+Dari terminal Bash:
+
+```bash
+cd /workspaces/LMS2
+./start-codeplayground.sh
+```
+
+Launcher akan menyalakan backend dan membuka `http://127.0.0.1:8001` secara
+otomatis. Untuk mode tanpa pembukaan browser:
+
+```bash
+CODEPLAYGROUND_OPEN_BROWSER=0 ./start-codeplayground.sh
+```
+
 ## Menjalankan backend Python penuh
 
 Backend lokal pada port `8001` menjalankan Python asli, sehingga package pada `requirements.txt`
