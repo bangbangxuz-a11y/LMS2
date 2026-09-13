@@ -177,6 +177,7 @@
             let pythonFsDirectories = new Set();
             let pythonModuleRoots = new Set();
             let pythonFilesystemFingerprint = '';
+            let pythonRequirementsFingerprint = '';
 
             // --- VFS ---
             let files = {};
@@ -2176,8 +2177,37 @@
                 return normalized.split('/').join('.');
             }
 
+            function getPythonRequirements() {
+                const requirementsEntry = Object.entries(files).find(([fileId]) =>
+                    normalizeVfsPath(fileId).toLowerCase() === 'requirements.txt');
+                if (!requirementsEntry) return [];
+                const requirements = getCurrentContent(requirementsEntry[1]).split(/\r?\n/)
+                    .map(line => line.replace(/\s+#.*$/, '').trim())
+                    .filter(line => line && !line.startsWith('#'));
+                if (requirements.length > 100 || requirements.some(requirement => requirement.length > 256)) {
+                    throw new Error('requirements.txt terlalu besar atau memiliki terlalu banyak package');
+                }
+                if (requirements.some(requirement => /^(-r|--requirement|-c|--constraint)\b/i.test(requirement))) {
+                    throw new Error('requirements.txt hanya mendukung spesifikasi package, bukan file referensi');
+                }
+                return [...new Set(requirements)];
+            }
+
+            async function installPythonRequirements(runtime) {
+                const requirements = getPythonRequirements();
+                const fingerprint = JSON.stringify(requirements);
+                if (!requirements.length || fingerprint === pythonRequirementsFingerprint) return;
+                if (typeof runtime.loadPackage !== 'function') {
+                    throw new Error('Runtime Python tidak mendukung instalasi package');
+                }
+                await runtime.loadPackage('micropip');
+                await runtime.runPythonAsync(`import micropip\nawait micropip.install(${JSON.stringify(requirements)})`);
+                pythonRequirementsFingerprint = fingerprint;
+            }
+
             async function runPythonCode() {
                 if (pythonRunInProgress) return;
+                syncAllFileState();
                 const file = getPythonEntryFile();
                 if (!file) {
                     showToast('⚠️ Belum ada file Python');
@@ -2197,6 +2227,7 @@
                     const pythonPreparation = await preparePythonFilesystem(runtime);
                     runtime.setStdout({ batched: text => addConsoleEntry('info', text) });
                     runtime.setStderr({ batched: text => addConsoleEntry('error', text) });
+                    await installPythonRequirements(runtime);
                     if (pythonPreparation.changed && typeof runtime.loadPackagesFromImports === 'function') {
                         const localModuleNames = new Set(Object.keys(files).filter(id => files[id].language === 'python')
                             .map(id => normalizeVfsPath(id).split('/')[0].replace(/\.py$/i, '')));
@@ -2949,6 +2980,7 @@
                 }
                 const ext = file.name.split('.').pop().toLowerCase();
                 const isCode = ['html', 'css', 'js', 'py'].includes(ext);
+                const isPythonRequirements = file.name.toLowerCase() === 'requirements.txt';
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     const content = ev.target.result;
@@ -2996,7 +3028,7 @@
                 };
                 reader.onerror = () => resetUpload('⚠️ Gagal membaca file');
                 reader.onabort = () => resetUpload('⚠️ Pembacaan file dibatalkan');
-                if (isCode) reader.readAsText(file);
+                if (isCode || isPythonRequirements) reader.readAsText(file);
                 else reader.readAsDataURL(file);
             });
 
