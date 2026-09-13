@@ -73,10 +73,10 @@ headless, nonaktifkan pembukaan browser dengan:
 CODEPLAYGROUND_OPEN_BROWSER=0 ./.vscode/start-backend.sh
 ```
 
-Di GitHub Codespaces, konfigurasi `.devcontainer/devcontainer.json` meneruskan
-port `8001` dan `8000` serta membuka browser otomatis saat port mulai aktif.
-Setelah konfigurasi baru ditambahkan, pilih **Rebuild Container** sekali agar
-aturan port forwarding diterapkan.
+Di GitHub Codespaces, konfigurasi `.devcontainer/devcontainer.json` otomatis
+menjalankan backend Bash di background, meneruskan port `8001` dan `8000`, serta
+membuka browser saat port mulai aktif. Setelah konfigurasi baru ditambahkan,
+pilih **Rebuild Container** sekali agar aturan ini diterapkan.
 
 ## Kelompok Ujian Akhir Semester (UAS)
 

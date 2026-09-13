@@ -1,5 +1,6 @@
 {
     "name": "CodePlayground Pro",
+    "postStartCommand": "bash -lc 'CODEPLAYGROUND_OPEN_BROWSER=0 ./.vscode/start-backend.sh > /tmp/codeplayground-backend.log 2>&1 &'",
     "forwardPorts": [8001, 8000],
     "portsAttributes": {
         "8001": {
