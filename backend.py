@@ -326,8 +326,10 @@ class CodePlaygroundHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         origin = self.headers.get("Origin", "").rstrip("/")
         parsed_origin = urlparse(origin)
+        request_host = self.headers.get("Host", "").rsplit(":", 1)[0].strip("[]")
         is_local_origin = parsed_origin.hostname in {"localhost", "127.0.0.1", "::1"}
-        if origin in CONFIGURED_ORIGINS or origin in DEFAULT_LOCAL_ORIGINS or is_local_origin:
+        is_same_forwarded_host = bool(parsed_origin.hostname and parsed_origin.hostname == request_host)
+        if origin in CONFIGURED_ORIGINS or origin in DEFAULT_LOCAL_ORIGINS or is_local_origin or is_same_forwarded_host:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
