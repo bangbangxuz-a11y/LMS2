@@ -2095,7 +2095,7 @@
                 const importDirectories = [...directoryPaths]
                     .sort((left, right) => left.split('/').length - right.split('/').length)
                     .map(directoryPath => `${PYTHON_PROJECT_DIR}/${directoryPath}`);
-                await runtime.runPythonAsync(`import sys\nimport_directories = ${JSON.stringify([PYTHON_PROJECT_DIR, ...importDirectories])}\nfor directory in import_directories:\n    while directory in sys.path:\n        sys.path.remove(directory)\nfor directory in reversed(import_directories):\n    sys.path.insert(0, directory)\nlocal_roots = ${JSON.stringify([...moduleRoots])}\nfor module_name in list(sys.modules):\n    if module_name.split('.')[0] in local_roots:\n        del sys.modules[module_name}`);
+                await runtime.runPythonAsync(`import sys\nimport_directories = ${JSON.stringify([PYTHON_PROJECT_DIR, ...importDirectories])}\nfor directory in import_directories:\n    while directory in sys.path:\n        sys.path.remove(directory)\nfor directory in reversed(import_directories):\n    sys.path.insert(0, directory)\nlocal_roots = ${JSON.stringify([...moduleRoots])}\nfor module_name in list(sys.modules):\n    if module_name.split('.')[0] in local_roots:\n        del sys.modules[module_name]`);
                 return { changed: filesystemChanged, fingerprint };
             }
 
