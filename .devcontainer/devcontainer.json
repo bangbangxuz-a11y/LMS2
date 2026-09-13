@@ -1,0 +1,27 @@
+{
+    "name": "CodePlayground Pro",
+    "forwardPorts": [8001, 8000],
+    "portsAttributes": {
+        "8001": {
+            "label": "CodePlayground Editor",
+            "onAutoForward": "openBrowser",
+            "protocol": "http"
+        },
+        "8000": {
+            "label": "Python Project Server",
+            "onAutoForward": "openBrowser",
+            "protocol": "http"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "task.allowAutomaticTasks": "on",
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.automationProfile.linux": {
+                    "path": "/usr/bin/bash"
+                }
+            }
+        }
+    }
+}
