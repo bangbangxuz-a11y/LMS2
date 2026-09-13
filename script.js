@@ -2325,7 +2325,7 @@
                     else icon.innerHTML = '<i class="fas fa-file"></i>';
                     const name = document.createElement('span');
                     name.className = 'file-name';
-                    name.textContent = id + (f.dirty ? ' ●' : '');
+                    name.textContent = node.name + (f.dirty ? ' ●' : '');
                     const actions = document.createElement('span');
                     actions.className = 'file-actions';
                     const del = document.createElement('button');
@@ -2380,7 +2380,7 @@
                     btn.id = `editor-tab-${order.indexOf(id)}`;
                     btn.setAttribute('aria-controls', `${editorKey}EditorSlot`);
                     const label = document.createElement('span');
-                    label.textContent = id;
+                    label.textContent = id.split('/').pop();
                     const dot = document.createElement('span');
                     dot.className = 'dirty-dot';
                     const close = document.createElement('button');
