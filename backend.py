@@ -9,9 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
+import signal
 import subprocess
-import sys
 import tempfile
 import threading
 import venv
@@ -25,9 +24,17 @@ PORT = int(os.environ.get("CODEPLAYGROUND_PORT", "8000"))
 MAX_BODY_SIZE = 8 * 1024 * 1024
 RUN_TIMEOUT_SECONDS = 30
 INSTALL_TIMEOUT_SECONDS = 180
+MAX_OUTPUT_SIZE = 4 * 1024 * 1024
 VENV_DIR = ROOT / ".codeplayground-venv"
+DEFAULT_LOCAL_ORIGINS = {"http://localhost", "http://127.0.0.1", "http://[::1]", "null"}
+CONFIGURED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.environ.get("CODEPLAYGROUND_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+}
 
 venv_lock = threading.Lock()
+requirements_lock = threading.Lock()
 venv_python: Path | None = None
 installed_requirements_hash = ""
 
@@ -84,7 +91,10 @@ def validate_payload(payload: dict) -> tuple[str, dict[str, str], str]:
 
     if entry_file not in files:
         raise ValueError("File Python utama tidak ditemukan")
-    requirements = files.get("requirements.txt", "")
+    requirements = next(
+        (content for file_name, content in files.items() if file_name.lower() == "requirements.txt"),
+        "",
+    )
     return entry_file, files, requirements
 
 
@@ -93,42 +103,95 @@ def create_virtualenv() -> Path:
     with venv_lock:
         if venv_python and venv_python.exists():
             return venv_python
-        if not VENV_DIR.exists():
-            venv.EnvBuilder(with_pip=True, clear=False).create(VENV_DIR)
         candidate = VENV_DIR / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if not candidate.exists():
+            venv.EnvBuilder(with_pip=True, clear=VENV_DIR.exists()).create(VENV_DIR)
         if not candidate.exists():
             raise RuntimeError("Virtual environment Python tidak ditemukan")
         venv_python = candidate
         return candidate
 
 
+def run_subprocess(command: list[str], *, cwd: Path, timeout: int, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    process_options: dict[str, object] = {
+        "cwd": cwd,
+        "env": env,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+    }
+    if os.name == "nt":
+        process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        process_options["start_new_session"] = True
+
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        process_options["stdout"] = stdout_file
+        process_options["stderr"] = stderr_file
+        process = subprocess.Popen(command, **process_options)
+        try:
+            process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            if os.name == "nt":
+                process.kill()
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
+            raise subprocess.TimeoutExpired(command, timeout) from error
+
+        def read_tail(stream: tempfile._TemporaryFileWrapper) -> str:
+            stream.seek(0, os.SEEK_END)
+            stream.seek(max(0, stream.tell() - MAX_OUTPUT_SIZE))
+            return stream.read().decode("utf-8", errors="replace")
+
+        return subprocess.CompletedProcess(
+            command,
+            process.returncode,
+            read_tail(stdout_file),
+            read_tail(stderr_file),
+        )
+
+
 def install_requirements(requirements: str) -> Path:
     global installed_requirements_hash
-    python = create_virtualenv()
-    normalized = requirements.replace("\r\n", "\n").strip()
-    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-    if not normalized or digest == installed_requirements_hash:
-        return python
+    with requirements_lock:
+        python = create_virtualenv()
+        normalized = requirements.replace("\r\n", "\n").strip()
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        if not normalized or digest == installed_requirements_hash:
+            return python
 
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".txt", delete=False) as file:
-        file.write(normalized + "\n")
-        requirements_path = Path(file.name)
-    try:
-        result = subprocess.run(
-            [str(python), "-m", "pip", "install", "--disable-pip-version-check", "-r", str(requirements_path)],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            timeout=INSTALL_TIMEOUT_SECONDS,
-            check=False,
-        )
-        if result.returncode != 0:
-            detail = (result.stderr or result.stdout).strip()[-4000:]
-            raise RuntimeError(f"Instalasi requirements gagal: {detail}")
-        installed_requirements_hash = digest
-        return python
-    finally:
-        requirements_path.unlink(missing_ok=True)
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".txt", delete=False) as file:
+            file.write(normalized + "\n")
+            requirements_path = Path(file.name)
+        try:
+            try:
+                result = run_subprocess(
+                    [
+                        str(python),
+                        "-m",
+                        "pip",
+                        "install",
+                        "--disable-pip-version-check",
+                        "--no-input",
+                        "-r",
+                        str(requirements_path),
+                    ],
+                    cwd=ROOT,
+                    timeout=INSTALL_TIMEOUT_SECONDS,
+                    env={**os.environ, "PIP_NO_INPUT": "1"},
+                )
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError("Instalasi requirements melebihi batas 180 detik") from error
+            if result.returncode != 0:
+                detail = (result.stderr or result.stdout).strip()[-4000:]
+                raise RuntimeError(f"Instalasi requirements gagal: {detail}")
+            installed_requirements_hash = digest
+            return python
+        finally:
+            requirements_path.unlink(missing_ok=True)
 
 
 def run_python(payload: dict) -> dict:
@@ -140,26 +203,28 @@ def run_python(payload: dict) -> dict:
             destination = project_dir / Path(file_name)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content, encoding="utf-8")
-        result = subprocess.run(
+        result = run_subprocess(
             [str(python), entry_file],
             cwd=project_dir,
-            capture_output=True,
-            text=True,
             timeout=RUN_TIMEOUT_SECONDS,
-            check=False,
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         return {
             "ok": result.returncode == 0,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "stdout": result.stdout[-MAX_OUTPUT_SIZE:],
+            "stderr": result.stderr[-MAX_OUTPUT_SIZE:],
             "exitCode": result.returncode,
         }
 
 
 class CodePlaygroundHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin", "").rstrip("/")
+        parsed_origin = urlparse(origin)
+        is_local_origin = parsed_origin.hostname in {"localhost", "127.0.0.1", "::1"}
+        if origin in CONFIGURED_ORIGINS or origin in DEFAULT_LOCAL_ORIGINS or is_local_origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         super().end_headers()
