@@ -1,0 +1,3 @@
+.codeplayground-venv/
+__pycache__/
+*.pyc

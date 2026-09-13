@@ -2205,6 +2205,38 @@
                 pythonRequirementsFingerprint = fingerprint;
             }
 
+            async function runPythonOnBackend(file) {
+                const pythonFiles = {};
+                Object.entries(files).forEach(([fileId, candidate]) => {
+                    if (candidate.language === 'python' || normalizeVfsPath(fileId).toLowerCase() === 'requirements.txt') {
+                        pythonFiles[fileId] = getCurrentContent(candidate);
+                    }
+                });
+                const entryFile = getPythonFileId(file);
+                try {
+                    const response = await fetch('/api/python/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ entryFile, files: pythonFiles })
+                    });
+                    const payload = await response.json().catch(() => ({}));
+                    if (payload.stdout) addConsoleEntry('info', payload.stdout);
+                    if (payload.stderr) addConsoleEntry('error', payload.stderr);
+                    if (!response.ok) {
+                        addConsoleEntry('error', `Backend Python gagal: ${payload.error || response.statusText}`);
+                        showToast('⚠️ Backend Python gagal');
+                    } else {
+                        addConsoleEntry('info', `Python selesai (exit code ${payload.exitCode ?? 0})`);
+                    }
+                    return true;
+                } catch (error) {
+                    if (error?.name !== 'TypeError') {
+                        addConsoleEntry('error', `Backend Python gagal: ${error?.message || error}`);
+                    }
+                    return false;
+                }
+            }
+
             async function runPythonCode() {
                 if (pythonRunInProgress) return;
                 syncAllFileState();
@@ -2223,6 +2255,7 @@
                 addConsoleEntry('info', `Python: ${activeFileId === Object.keys(files).find(id => files[id] === file) ? activeFileId : 'main.py'}`);
                 let runtime = null;
                 try {
+                    if (await runPythonOnBackend(file)) return;
                     runtime = await loadPyodideRuntime();
                     const pythonPreparation = await preparePythonFilesystem(runtime);
                     runtime.setStdout({ batched: text => addConsoleEntry('info', text) });
