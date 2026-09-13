@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
-HOST = os.environ.get("CODEPLAYGROUND_HOST", "127.0.0.1")
+HOST = os.environ.get("CODEPLAYGROUND_HOST", "0.0.0.0")
 PORT = int(os.environ.get("CODEPLAYGROUND_PORT", "8001"))
 MAX_BODY_SIZE = 8 * 1024 * 1024
 RUN_TIMEOUT_SECONDS = 30
