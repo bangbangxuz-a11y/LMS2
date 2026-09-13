@@ -1,7 +1,7 @@
 """Local backend for running project Python with the host interpreter.
 
 This server is intended for local development. It accepts code only from the
-same local application and binds to 127.0.0.1 by default.
+same local application and binds to all interfaces for dev-container forwarding.
 """
 
 from __future__ import annotations
@@ -239,31 +239,35 @@ def build_python_command(python: Path, entry_file: str, project_dir: Path) -> li
     return [str(python), entry_file]
 
 
-def stop_python_server() -> None:
+def _stop_python_server_locked() -> None:
     global server_process, server_temp_dir, server_log_handles
-    with server_lock:
-        process = server_process
-        server_process = None
-        if process and process.poll() is None:
+    process = server_process
+    server_process = None
+    if process and process.poll() is None:
+        if os.name == "nt":
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
             if os.name == "nt":
                 process.kill()
             else:
-                os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                if os.name == "nt":
-                    process.kill()
-                else:
-                    os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-        if server_log_handles:
-            for handle in server_log_handles:
-                handle.close()
-            server_log_handles = None
-        if server_temp_dir:
-            server_temp_dir.cleanup()
-            server_temp_dir = None
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+    if server_log_handles:
+        for handle in server_log_handles:
+            handle.close()
+        server_log_handles = None
+    if server_temp_dir:
+        server_temp_dir.cleanup()
+        server_temp_dir = None
+
+
+def stop_python_server() -> None:
+    with server_lock:
+        _stop_python_server_locked()
 
 
 def start_python_server(payload: dict) -> dict:
@@ -273,53 +277,54 @@ def start_python_server(payload: dict) -> dict:
     if not isinstance(requested_port, int) or not 1024 <= requested_port <= 65535:
         raise ValueError("Port server tidak valid")
     python = install_requirements(requirements)
-    stop_python_server()
-    temp_dir = tempfile.TemporaryDirectory(prefix="codeplayground-server-")
-    project_dir = Path(temp_dir.name)
-    for file_name, content in files.items():
-        destination = project_dir / Path(file_name)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(content, encoding="utf-8")
-    command = build_python_command(python, entry_file, project_dir)
-    stdout_log = (project_dir / ".server.stdout.log").open("w", encoding="utf-8")
-    stderr_log = (project_dir / ".server.stderr.log").open("w", encoding="utf-8")
-    process_options: dict[str, object] = {
-        "cwd": project_dir,
-        "env": {**os.environ, "PYTHONIOENCODING": "utf-8"},
-        "stdout": stdout_log,
-        "stderr": stderr_log,
-        "text": True,
-        "encoding": "utf-8",
-        "errors": "replace",
-    }
-    if os.name == "nt":
-        process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        process_options["start_new_session"] = True
-    try:
-        process = subprocess.Popen(command, **process_options)
-    except OSError:
-        stdout_log.close()
-        stderr_log.close()
-        temp_dir.cleanup()
-        raise
-    server_process = process
-    server_temp_dir = temp_dir
-    server_log_handles = (stdout_log, stderr_log)
-    deadline = time.monotonic() + 0.5
-    while time.monotonic() < deadline and process.poll() is None:
-        time.sleep(0.02)
-    if process.poll() is not None:
-        stdout_log.flush()
-        stderr_log.flush()
-        stdout_log.seek(0)
-        stderr_log.seek(0)
-        stdout = stdout_log.read()
-        stderr = stderr_log.read()
-        stop_python_server()
-        detail = (stderr or stdout).strip()[-4000:]
-        raise RuntimeError(f"Server Python gagal dimulai: {detail}")
-    return {"ok": True, "url": f"http://127.0.0.1:{requested_port}", "port": requested_port}
+    with server_lock:
+        _stop_python_server_locked()
+        temp_dir = tempfile.TemporaryDirectory(prefix="codeplayground-server-")
+        project_dir = Path(temp_dir.name)
+        for file_name, content in files.items():
+            destination = project_dir / Path(file_name)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(content, encoding="utf-8")
+        command = build_python_command(python, entry_file, project_dir)
+        stdout_log = (project_dir / ".server.stdout.log").open("w", encoding="utf-8")
+        stderr_log = (project_dir / ".server.stderr.log").open("w", encoding="utf-8")
+        process_options: dict[str, object] = {
+            "cwd": project_dir,
+            "env": {**os.environ, "PYTHONIOENCODING": "utf-8"},
+            "stdout": stdout_log,
+            "stderr": stderr_log,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+        }
+        if os.name == "nt":
+            process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            process_options["start_new_session"] = True
+        try:
+            process = subprocess.Popen(command, **process_options)
+        except OSError:
+            stdout_log.close()
+            stderr_log.close()
+            temp_dir.cleanup()
+            raise
+        server_process = process
+        server_temp_dir = temp_dir
+        server_log_handles = (stdout_log, stderr_log)
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline and process.poll() is None:
+            time.sleep(0.02)
+        if process.poll() is not None:
+            stdout_log.flush()
+            stderr_log.flush()
+            stdout_log.seek(0)
+            stderr_log.seek(0)
+            stdout = stdout_log.read()
+            stderr = stderr_log.read()
+            _stop_python_server_locked()
+            detail = (stderr or stdout).strip()[-4000:]
+            raise RuntimeError(f"Server Python gagal dimulai: {detail}")
+        return {"ok": True, "url": f"http://127.0.0.1:{requested_port}", "port": requested_port}
 
 
 class CodePlaygroundHandler(SimpleHTTPRequestHandler):
