@@ -2269,8 +2269,8 @@
                     previewStatus.textContent = 'server';
                     return true;
                 } catch (error) {
-                    addConsoleEntry('error', 'Backend Python tidak aktif. Jalankan "python3 backend.py", lalu coba lagi.');
-                    showToast('⚠️ Backend Python belum aktif');
+                    addConsoleEntry('error', `Backend Python tidak aktif di ${PYTHON_BACKEND_ORIGIN}. Jalankan "python3 backend.py", buka ${PYTHON_BACKEND_ORIGIN}, lalu coba lagi.`);
+                    showToast('⚠️ Jalankan backend di port 8001');
                     return true;
                 }
             }
